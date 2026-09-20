@@ -240,10 +240,10 @@ ADMIN_PAGE = """<!doctype html>
 <html lang="fr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Administration du stockage</title>
 <style>
-body{font-family:system-ui,-apple-system,Segoe UI,sans-serif;max-width:1100px;margin:40px auto;padding:0 20px;background:#f5f7fb;color:#18202a}.card{background:white;border-radius:18px;padding:28px;box-shadow:0 8px 30px #00000012}table{width:100%;border-collapse:collapse;margin-top:20px}th,td{text-align:left;padding:12px;border-bottom:1px solid #eaecf0;vertical-align:top}button{padding:8px 12px;border:0;border-radius:8px;background:#b42318;color:white;cursor:pointer}.muted{color:#667085}.files{font-size:.9rem;color:#475467}.file-actions{display:inline-flex;gap:8px;align-items:center;margin-left:6px}.preview-link{color:#175cd3;cursor:pointer}.empty{padding:30px;text-align:center;color:#667085}.modal{display:none;position:fixed;inset:0;background:#000b;align-items:center;justify-content:center;padding:20px;z-index:10}.modal.open{display:flex}.modal-box{position:relative;background:white;border-radius:14px;padding:14px;max-width:95vw;max-height:95vh}.modal-box img{display:block;max-width:90vw;max-height:82vh;object-fit:contain}.modal-close{position:absolute;right:8px;top:8px;background:#111827;color:white;border-radius:50%;width:34px;height:34px;padding:0}
+body{font-family:system-ui,-apple-system,Segoe UI,sans-serif;max-width:1100px;margin:40px auto;padding:0 20px;background:#f5f7fb;color:#18202a}.card{background:white;border-radius:18px;padding:28px;box-shadow:0 8px 30px #00000012}table{width:100%;border-collapse:collapse;margin-top:20px}th,td{text-align:left;padding:12px;border-bottom:1px solid #eaecf0;vertical-align:top}button{padding:8px 12px;border:0;border-radius:8px;background:#b42318;color:white;cursor:pointer}.muted{color:#667085}.files{font-size:.9rem;color:#475467}.file-actions{display:inline-flex;gap:8px;align-items:center;margin-left:6px}.preview-link{color:#175cd3;cursor:pointer}.empty{padding:30px;text-align:center;color:#667085}.modal{display:none;position:fixed;inset:0;background:#000b;align-items:center;justify-content:center;padding:20px;z-index:10}.modal.open{display:flex}.modal-box{position:relative;background:white;border-radius:14px;padding:14px;max-width:95vw;max-height:95vh}.modal-box img{display:block;max-width:90vw;max-height:82vh;object-fit:contain}.section{margin-top:24px;padding:18px;border:1px solid #eaecf0;border-radius:14px}.section h2{margin:0 0 12px}.file-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:14px}.file-card{border:1px solid #eaecf0;border-radius:12px;padding:10px;background:#fafafa}.file-card img{display:block;width:100%;height:150px;object-fit:contain;background:white;border-radius:8px;margin-bottom:8px}.file-name{font-size:.9rem;word-break:break-word}.file-meta{font-size:.8rem;color:#667085;margin-top:4px}.file-actions{display:flex;gap:8px;align-items:center;margin-top:8px}.file-actions a{color:#175cd3}.zip-file{margin-top:10px;padding:10px;border:1px dashed #d0d5dd;border-radius:10px}.danger{padding:8px 12px;border:0;border-radius:8px;background:#b42318;color:white;cursor:pointer}.modal-close{position:absolute;right:8px;top:8px;background:#111827;color:white;border-radius:50%;width:34px;height:34px;padding:0}
 </style></head><body><div class="card">
 <h1>Administration du stockage</h1><p class="muted">Fichiers temporaires conservés pendant 48 heures maximum.</p><p><a href="/admin/logout">Se déconnecter</a></p>
-<table><thead><tr><th>Dossier</th><th>Fichiers</th><th>Taille</th><th>Expiration</th><th>Action</th></tr></thead><tbody id="rows"></tbody></table>
+<div id="jobs"></div>
 <p><a href="/">← Retour au traducteur</a></p></div>
 <div id="previewModal" class="modal" onclick="closePreview(event)">
   <div class="modal-box">
@@ -253,23 +253,27 @@ body{font-family:system-ui,-apple-system,Segoe UI,sans-serif;max-width:1100px;ma
 </div>
 <script>
 function fmtDate(ts){return new Date(ts*1000).toLocaleString('fr-FR')}
-function fmtLeft(s){if(s<=0)return 'à supprimer';const d=Math.floor(s/86400),h=Math.floor(s%86400/3600),m=Math.floor(s%3600/60);return d+' j '+h+' h '+m+' min'}
-async function load(){const r=await fetch('/api/admin/storage');const data=await r.json();const body=document.getElementById('rows');body.innerHTML='';if(!data.items.length){body.innerHTML='<tr><td colspan="5" class="empty">Aucun fichier temporaire actuellement stocké.</td></tr>';return}for(const item of data.items){const tr=document.createElement('tr');const files=item.files.map(f=>{
-  const url='/api/admin/storage/file?work_id='+encodeURIComponent(item.id)+'&path='+encodeURIComponent(f.name);
-  const previewable=/\\.(jpe?g|png|webp|tiff?)$/i.test(f.name);
-  return '<div style="margin-bottom:6px">'+f.name+' ('+f.size_human+') <span class="file-actions">'+(previewable?'<a class="preview-link" href="#" onclick="showPreview(\\''+url+'&preview=1\\');return false">Aperçu</a>':'')+'<a href="'+url+'">Télécharger</a></span></div>';
-}).join('');tr.innerHTML='<td><strong>'+item.id+'</strong><br><span class="muted">Créé le '+fmtDate(item.created)+'</span></td><td class="files">'+files+'</td><td>'+item.size_human+'</td><td>'+fmtDate(item.expires)+'<br><span class="muted">'+fmtLeft(item.expires_in)+'</span></td><td><button onclick="removeItem(\\''+item.id+'\\')">Supprimer maintenant</button></td>';body.appendChild(tr)}}
-function showPreview(url){
-  document.getElementById('previewImage').src=url;
-  document.getElementById('previewModal').classList.add('open');
+function fileUrl(item,f){return '/api/admin/storage/file?work_id='+encodeURIComponent(item.id)+'&path='+encodeURIComponent(f.name)}
+function renderCard(item,f){
+  const url=fileUrl(item,f);
+  return '<div class="file-card"><img src="'+url+'&preview=1" alt=""><div class="file-name">'+f.name+'</div><div class="file-meta">'+f.size_human+'</div><div class="file-actions"><a href="'+url+'">Télécharger</a></div></div>';
 }
-function closePreview(event){
-  if(event) event.stopPropagation();
-  document.getElementById('previewModal').classList.remove('open');
-  document.getElementById('previewImage').src='';
+async function load(){
+  const r=await fetch('/api/admin/storage'); const data=await r.json(); const body=document.getElementById('jobs'); body.innerHTML='';
+  if(!data.items.length){body.innerHTML='<div class="empty">Aucun fichier temporaire actuellement stocké.</div>';return}
+  for(const item of data.items){
+    const inputs=item.files.filter(f=>/^input_\d+\.(jpe?g|png|webp|tiff?)$/i.test(f.name));
+    const outputs=item.files.filter(f=>/^traduit\//i.test(f.name) && /\.(jpe?g|png|webp|tiff?)$/i.test(f.name));
+    const zips=item.files.filter(f=>/\.zip$/i.test(f.name));
+    const section=document.createElement('div'); section.className='section';
+    section.innerHTML='<h2>'+item.id+'</h2><div class="muted">Créé le '+fmtDate(item.created)+' · Expire le '+fmtDate(item.expires)+' · '+item.size_human+'</div>'+
+      '<div class="section"><h3>Images envoyées</h3><div class="file-grid">'+(inputs.length?inputs.map(f=>renderCard(item,f)).join(''):'<div class="muted">Aucune image envoyée.</div>')+'</div></div>'+
+      '<div class="section"><h3>Images traduites</h3><div class="file-grid">'+(outputs.length?outputs.map(f=>renderCard(item,f)).join(''):'<div class="muted">Aucune image traduite.</div>')+'</div></div>'+
+      '<div class="zip-file"><strong>ZIP :</strong> '+(zips.map(f=>'<a href="'+fileUrl(item,f)+'">Télécharger le ZIP</a>').join('')||'aucun')+'</div>'+
+      '<p><button class="danger" onclick="removeItem(\''+item.id+'\')">Supprimer maintenant</button></p>';
+    body.appendChild(section);
+  }
 }
-document.addEventListener('keydown',e=>{if(e.key==='Escape')closePreview();});
-
 async function removeItem(id){if(!confirm('Supprimer définitivement ce dossier et toutes ses images ?'))return;const r=await fetch('/api/admin/storage/'+encodeURIComponent(id),{method:'DELETE'});const d=await r.json();if(!r.ok)alert(d.error||'Erreur');load()}
 load();setInterval(load,60000);
 </script></body></html>"""
