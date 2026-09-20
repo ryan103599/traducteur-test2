@@ -21,7 +21,7 @@ fi
 echo
 echo "======================================"
 echo " Traducteur d'images"
-echo " OCR.space + MyMemory"
+echo " NAVER Papago Image Translation"
 echo "======================================"
 echo " Configuration : fichier .env (local)"
 echo " Local  : http://127.0.0.1:8686"
