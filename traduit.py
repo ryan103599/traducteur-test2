@@ -71,9 +71,48 @@ def remove_text(image,items):
     return Image.fromarray(cv2.cvtColor(result,cv2.COLOR_BGR2RGB))
 
 def translate_texts(texts,target):
+    """
+    Traduit les blocs en limitant fortement les requêtes Google Translate.
+    On privilégie translate_batch() pour éviter une requête HTTP par bloc.
+    En cas de rate-limit (TooManyRequests), on attend puis on réessaie.
+    """
+    if not texts:
+        return []
+
     translator=GoogleTranslator(source="auto",target=target)
-    try:return translator.translate_batch(texts)
-    except Exception:return [translator.translate(t) for t in texts]
+
+    # Une seule requête batch pour l'image dans la majorité des cas.
+    for attempt in range(3):
+        try:
+            return translator.translate_batch(texts)
+        except Exception as exc:
+            message=str(exc).lower()
+            if "toomanyrequests" not in message and "too many requests" not in message:
+                break
+            import time
+            time.sleep(2 * (attempt + 1))
+
+    # Secours : traduction bloc par bloc, mais volontairement limitée
+    # à <= 4 requêtes/seconde pour rester sous la limite annoncée.
+    import time
+    translations=[]
+    for text in texts:
+        translated=None
+        for attempt in range(3):
+            try:
+                translated=translator.translate(text)
+                break
+            except Exception as exc:
+                message=str(exc).lower()
+                if "toomanyrequests" not in message and "too many requests" not in message:
+                    raise
+                time.sleep(2 * (attempt + 1))
+        if translated is None:
+            raise RuntimeError("Google Translate refuse temporairement les requêtes (TooManyRequests). Réessayez dans quelques instants.")
+        translations.append(translated)
+        time.sleep(0.26)
+
+    return translations
 
 def translate_image(input_image,output_image,target="fr"):
     input_image=os.path.abspath(input_image)
