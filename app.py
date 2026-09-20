@@ -270,20 +270,9 @@ async function load(){
   try{
     const r=await fetch('/api/admin/storage',{credentials:'same-origin'});
     if(!r.ok) throw new Error('Session administrateur expirée. Recharge la page et reconnecte-toi.');
-    const data=await r.json(); window.storageItems=data.items; renderJobs(); return;
-    if(!data.items.length){body.innerHTML='<div class="empty">Aucun fichier temporaire actuellement stocké.</div>';return}
-    for(const item of data.items){
-      const inputs=item.files.filter(f=>/^input_\\d+\\.(jpe?g|png|webp|tiff?)$/i.test(f.name));
-      const outputs=item.files.filter(f=>/^traduit\\//i.test(f.name)&&/\\.(jpe?g|png|webp|tiff?)$/i.test(f.name));
-      const zips=item.files.filter(f=>/\\.zip$/i.test(f.name));
-      const section=document.createElement('div'); section.className='section';
-      section.innerHTML='<h2>'+esc(item.id)+'</h2><div class="muted">Créé le '+fmtDate(item.created)+' · Expire le '+fmtDate(item.expires)+' · '+esc(item.size_human)+'</div>'+
-      '<div class="section"><h3>Images envoyées</h3><div class="file-grid">'+(inputs.length?inputs.map(f=>card(item,f)).join(''):'<div class="muted">Aucune image envoyée.</div>')+'</div></div>'+
-      '<div class="section"><h3>Images traduites</h3><div class="file-grid">'+(outputs.length?outputs.map(f=>card(item,f)).join(''):'<div class="muted">Aucune image traduite.</div>')+'</div></div>'+
-      '<div class="zip-file"><strong>ZIP :</strong> '+(zips.length?zips.map(f=>'<a href="'+fileUrl(item,f)+'">Télécharger le ZIP</a>').join(' · '):'aucun')+'</div>'+
-      '<p><button class="danger" onclick="removeItem(\\''+esc(item.id)+'\\')">Supprimer maintenant</button></p>';
-      body.appendChild(section);
-    }
+    const data=await r.json();
+    window.storageItems=data.items;
+    renderJobs();
   }catch(e){document.getElementById('error').innerHTML='<div class="error">'+esc(e.message)+'</div>'}
 }
 function renderJobs(){
