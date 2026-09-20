@@ -333,7 +333,7 @@ document.getElementById("jobs").addEventListener("click",async function(event){
   if(!button) return;
   const id=button.dataset.delete;
   if(!confirm("Supprimer définitivement ce dossier et toutes ses images ?")) return;
-  button.disabled=true; button.textContent="Suppression…"; const response=await fetch("/api/admin/storage/"+encodeURIComponent(id),{method:"DELETE",credentials:"same-origin",cache:"no-store"});
+  button.disabled=true; button.textContent="Suppression…"; const response=await fetch("/api/admin/storage/"+encodeURIComponent(id),{method:"POST",credentials:"same-origin",cache:"no-store"});
   if(!response.ok){
     let data={}; try{data=await response.json();}catch(e){}
     alert(data.error||"Erreur lors de la suppression.");
@@ -432,12 +432,12 @@ def admin_storage():
     return jsonify(items=list_stored_files())
 
 
-@app.delete("/api/admin/storage/<work_id>")
+@app.route("/api/admin/storage/<work_id>", methods=["DELETE", "POST"])
 def admin_delete_storage(work_id):
     auth = require_admin_api()
     if auth:
         return auth
-    if "/" in work_id or "\\\\" in work_id or not work_id.startswith(TEMP_PREFIX):
+    if "/" in work_id or "\\" in work_id or not work_id.startswith(TEMP_PREFIX):
         return jsonify(error="Dossier invalide."), 400
     work = Path(tempfile.gettempdir()) / work_id
     try:
