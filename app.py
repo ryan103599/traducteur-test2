@@ -240,15 +240,36 @@ ADMIN_PAGE = """<!doctype html>
 <html lang="fr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Administration du stockage</title>
 <style>
-body{font-family:system-ui,-apple-system,Segoe UI,sans-serif;max-width:1100px;margin:40px auto;padding:0 20px;background:#f5f7fb;color:#18202a}.card{background:white;border-radius:18px;padding:28px;box-shadow:0 8px 30px #00000012}table{width:100%;border-collapse:collapse;margin-top:20px}th,td{text-align:left;padding:12px;border-bottom:1px solid #eaecf0;vertical-align:top}button{padding:8px 12px;border:0;border-radius:8px;background:#b42318;color:white;cursor:pointer}.muted{color:#667085}.files{font-size:.9rem;color:#475467}a{color:#175cd3}.empty{padding:30px;text-align:center;color:#667085}
+body{font-family:system-ui,-apple-system,Segoe UI,sans-serif;max-width:1100px;margin:40px auto;padding:0 20px;background:#f5f7fb;color:#18202a}.card{background:white;border-radius:18px;padding:28px;box-shadow:0 8px 30px #00000012}table{width:100%;border-collapse:collapse;margin-top:20px}th,td{text-align:left;padding:12px;border-bottom:1px solid #eaecf0;vertical-align:top}button{padding:8px 12px;border:0;border-radius:8px;background:#b42318;color:white;cursor:pointer}.muted{color:#667085}.files{font-size:.9rem;color:#475467}.file-actions{display:inline-flex;gap:8px;align-items:center;margin-left:6px}.preview-link{color:#175cd3;cursor:pointer}.empty{padding:30px;text-align:center;color:#667085}.modal{display:none;position:fixed;inset:0;background:#000b;align-items:center;justify-content:center;padding:20px;z-index:10}.modal.open{display:flex}.modal-box{position:relative;background:white;border-radius:14px;padding:14px;max-width:95vw;max-height:95vh}.modal-box img{display:block;max-width:90vw;max-height:82vh;object-fit:contain}.modal-close{position:absolute;right:8px;top:8px;background:#111827;color:white;border-radius:50%;width:34px;height:34px;padding:0}
 </style></head><body><div class="card">
 <h1>Administration du stockage</h1><p class="muted">Fichiers temporaires conservés pendant 48 heures maximum.</p><p><a href="/admin/logout">Se déconnecter</a></p>
 <table><thead><tr><th>Dossier</th><th>Fichiers</th><th>Taille</th><th>Expiration</th><th>Action</th></tr></thead><tbody id="rows"></tbody></table>
 <p><a href="/">← Retour au traducteur</a></p></div>
+<div id="previewModal" class="modal" onclick="closePreview(event)">
+  <div class="modal-box">
+    <button class="modal-close" onclick="closePreview(event)">×</button>
+    <img id="previewImage" src="" alt="Aperçu">
+  </div>
+</div>
 <script>
 function fmtDate(ts){return new Date(ts*1000).toLocaleString('fr-FR')}
 function fmtLeft(s){if(s<=0)return 'à supprimer';const d=Math.floor(s/86400),h=Math.floor(s%86400/3600),m=Math.floor(s%3600/60);return d+' j '+h+' h '+m+' min'}
-async function load(){const r=await fetch('/api/admin/storage');const data=await r.json();const body=document.getElementById('rows');body.innerHTML='';if(!data.items.length){body.innerHTML='<tr><td colspan="5" class="empty">Aucun fichier temporaire actuellement stocké.</td></tr>';return}for(const item of data.items){const tr=document.createElement('tr');const files=item.files.map(f=>'<div style="margin-bottom:6px">'+f.name+' ('+f.size_human+') <a href="/api/admin/storage/file?work_id='+encodeURIComponent(item.id)+'&path='+encodeURIComponent(f.name)+'">Télécharger</a></div>').join('');tr.innerHTML='<td><strong>'+item.id+'</strong><br><span class="muted">Créé le '+fmtDate(item.created)+'</span></td><td class="files">'+files+'</td><td>'+item.size_human+'</td><td>'+fmtDate(item.expires)+'<br><span class="muted">'+fmtLeft(item.expires_in)+'</span></td><td><button onclick="removeItem(\\''+item.id+'\\')">Supprimer maintenant</button></td>';body.appendChild(tr)}}
+async function load(){const r=await fetch('/api/admin/storage');const data=await r.json();const body=document.getElementById('rows');body.innerHTML='';if(!data.items.length){body.innerHTML='<tr><td colspan="5" class="empty">Aucun fichier temporaire actuellement stocké.</td></tr>';return}for(const item of data.items){const tr=document.createElement('tr');const files=item.files.map(f=>{
+  const url='/api/admin/storage/file?work_id='+encodeURIComponent(item.id)+'&path='+encodeURIComponent(f.name);
+  const previewable=/\\.(jpe?g|png|webp|tiff?)$/i.test(f.name);
+  return '<div style="margin-bottom:6px">'+f.name+' ('+f.size_human+') <span class="file-actions">'+(previewable?'<a class="preview-link" href="#" onclick="showPreview(\\''+url+'&preview=1\\');return false">Aperçu</a>':'')+'<a href="'+url+'">Télécharger</a></span></div>';
+}).join('');tr.innerHTML='<td><strong>'+item.id+'</strong><br><span class="muted">Créé le '+fmtDate(item.created)+'</span></td><td class="files">'+files+'</td><td>'+item.size_human+'</td><td>'+fmtDate(item.expires)+'<br><span class="muted">'+fmtLeft(item.expires_in)+'</span></td><td><button onclick="removeItem(\\''+item.id+'\\')">Supprimer maintenant</button></td>';body.appendChild(tr)}}
+function showPreview(url){
+  document.getElementById('previewImage').src=url;
+  document.getElementById('previewModal').classList.add('open');
+}
+function closePreview(event){
+  if(event) event.stopPropagation();
+  document.getElementById('previewModal').classList.remove('open');
+  document.getElementById('previewImage').src='';
+}
+document.addEventListener('keydown',e=>{if(e.key==='Escape')closePreview();});
+
 async function removeItem(id){if(!confirm('Supprimer définitivement ce dossier et toutes ses images ?'))return;const r=await fetch('/api/admin/storage/'+encodeURIComponent(id),{method:'DELETE'});const d=await r.json();if(!r.ok)alert(d.error||'Erreur');load()}
 load();setInterval(load,60000);
 </script></body></html>"""
@@ -380,7 +401,16 @@ def admin_download_storage_file():
     if not file_path.is_file():
         return jsonify(error="Fichier introuvable."), 404
 
-    return send_file(file_path, as_attachment=True, download_name=file_path.name)
+    preview = request.args.get("preview") == "1"
+    if preview and file_path.suffix.lower() not in ALLOWED:
+        return jsonify(error="Aperçu disponible uniquement pour les images."), 400
+
+    return send_file(
+        file_path,
+        as_attachment=not preview,
+        download_name=file_path.name,
+        mimetype=None if not preview else None,
+    )
 
 
 @app.get("/api/lara-usage")
