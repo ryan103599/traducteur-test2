@@ -1,5 +1,7 @@
+import shutil
 import tempfile
 import threading
+import time
 import uuid
 import zipfile
 from pathlib import Path
@@ -38,6 +40,38 @@ LANGUAGES = {
 }
 
 SOURCE_LANGUAGES = {"auto": "Détection automatique", **LANGUAGES}
+
+def format_size(size):
+    units = ["o", "Ko", "Mo", "Go", "To"]
+    value = float(size)
+    for unit in units:
+        if value < 1024 or unit == units[-1]:
+            return f"{value:.1f} {unit}"
+        value /= 1024
+
+
+def list_stored_files():
+    now = time.time()
+    temp_root = Path(tempfile.gettempdir())
+    items = []
+    for work in temp_root.glob(f"{TEMP_PREFIX}*"):
+        try:
+            if not work.is_dir():
+                continue
+            created = work.stat().st_mtime
+            expires = created + RETENTION_SECONDS
+            files = []
+            total_size = 0
+            for path in work.rglob("*"):
+                if path.is_file():
+                    size = path.stat().st_size
+                    total_size += size
+                    files.append({"name": str(path.relative_to(work)), "size": size, "size_human": format_size(size)})
+            items.append({"id": work.name, "created": created, "expires": expires, "expires_in": max(0, int(expires - now)), "size": total_size, "size_human": format_size(total_size), "files": files})
+        except OSError:
+            continue
+    items.sort(key=lambda item: item["created"], reverse=True)
+    return items
 
 
 def cleanup_old_files():
@@ -111,6 +145,7 @@ small{display:block;margin-top:8px;color:#667085}
 
 <div id="status">En attente.</div>
 <a id="download" href="#" download>Télécharger le ZIP</a>
+<p style="margin-top:24px"><a href="/admin">Administration du stockage →</a></p>
 </div>
 <script>
 const start=document.getElementById("start"), files=document.getElementById("files");
@@ -156,6 +191,24 @@ start.onclick=async()=>{
 </html>"""
 
 
+ADMIN_PAGE = """<!doctype html>
+<html lang="fr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Administration du stockage</title>
+<style>
+body{font-family:system-ui,-apple-system,Segoe UI,sans-serif;max-width:1100px;margin:40px auto;padding:0 20px;background:#f5f7fb;color:#18202a}.card{background:white;border-radius:18px;padding:28px;box-shadow:0 8px 30px #00000012}table{width:100%;border-collapse:collapse;margin-top:20px}th,td{text-align:left;padding:12px;border-bottom:1px solid #eaecf0;vertical-align:top}button{padding:8px 12px;border:0;border-radius:8px;background:#b42318;color:white;cursor:pointer}.muted{color:#667085}.files{font-size:.9rem;color:#475467}a{color:#175cd3}.empty{padding:30px;text-align:center;color:#667085}
+</style></head><body><div class="card">
+<h1>Administration du stockage</h1><p class="muted">Fichiers temporaires conservés pendant 48 heures maximum.</p>
+<table><thead><tr><th>Dossier</th><th>Fichiers</th><th>Taille</th><th>Expiration</th><th>Action</th></tr></thead><tbody id="rows"></tbody></table>
+<p><a href="/">← Retour au traducteur</a></p></div>
+<script>
+function fmtDate(ts){return new Date(ts*1000).toLocaleString('fr-FR')}
+function fmtLeft(s){if(s<=0)return 'à supprimer';const d=Math.floor(s/86400),h=Math.floor(s%86400/3600),m=Math.floor(s%3600/60);return d+' j '+h+' h '+m+' min'}
+async function load(){const r=await fetch('/api/admin/storage');const data=await r.json();const body=document.getElementById('rows');body.innerHTML='';if(!data.items.length){body.innerHTML='<tr><td colspan="5" class="empty">Aucun fichier temporaire actuellement stocké.</td></tr>';return}for(const item of data.items){const tr=document.createElement('tr');const files=item.files.map(f=>f.name+' ('+f.size_human+')').join('<br>');tr.innerHTML='<td><strong>'+item.id+'</strong><br><span class="muted">Créé le '+fmtDate(item.created)+'</span></td><td class="files">'+files+'</td><td>'+item.size_human+'</td><td>'+fmtDate(item.expires)+'<br><span class="muted">'+fmtLeft(item.expires_in)+'</span></td><td><button onclick="removeItem(\\''+item.id+'\\')">Supprimer maintenant</button></td>';body.appendChild(tr)}}
+async function removeItem(id){if(!confirm('Supprimer définitivement ce dossier et toutes ses images ?'))return;const r=await fetch('/api/admin/storage/'+encodeURIComponent(id),{method:'DELETE'});const d=await r.json();if(!r.ok)alert(d.error||'Erreur');load()}
+load();setInterval(load,60000);
+</script></body></html>"""
+
+
 def set_job(job_id, **values):
     with LOCK:
         JOBS.setdefault(job_id, {}).update(values)
@@ -197,6 +250,30 @@ def worker(job_id, files, source, target):
 @app.get("/")
 def index():
     return render_template_string(PAGE, languages=LANGUAGES, source_languages=SOURCE_LANGUAGES)
+
+
+@app.get("/admin")
+def admin():
+    return ADMIN_PAGE
+
+
+@app.get("/api/admin/storage")
+def admin_storage():
+    return jsonify(items=list_stored_files())
+
+
+@app.delete("/api/admin/storage/<work_id>")
+def admin_delete_storage(work_id):
+    if "/" in work_id or "\\\\" in work_id or not work_id.startswith(TEMP_PREFIX):
+        return jsonify(error="Dossier invalide."), 400
+    work = Path(tempfile.gettempdir()) / work_id
+    try:
+        if not work.is_dir():
+            return jsonify(error="Dossier introuvable."), 404
+        shutil.rmtree(work)
+    except OSError as exc:
+        return jsonify(error=f"Suppression impossible : {exc}"), 500
+    return jsonify(ok=True)
 
 
 @app.get("/api/lara-usage")
