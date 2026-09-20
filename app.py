@@ -251,15 +251,15 @@ body{font-family:system-ui,-apple-system,Segoe UI,sans-serif;max-width:1200px;ma
 .zip-file{margin-top:16px;padding:12px;border:1px dashed #d0d5dd;border-radius:10px}
 .danger{padding:9px 14px;border:0;border-radius:8px;background:#b42318;color:white;cursor:pointer}
 .empty{padding:30px;text-align:center;color:#667085}
-.error{padding:14px;background:#fef3f2;color:#b42318;border-radius:10px;margin-top:15px}
+.error{padding:14px;background:#fef3f2;color:#b42318;border-radius:10px;margin-top:15px}.filters{display:flex;gap:8px;flex-wrap:wrap;margin:20px 0}.filter{padding:10px 16px;border:1px solid #d0d5dd;border-radius:10px;background:white;color:#344054;cursor:pointer;font-weight:600}.filter.active{background:#111827;color:white;border-color:#111827}
 </style></head><body><div class="card">
 <h1>Administration du stockage</h1>
 <p class="muted">Fichiers temporaires conservés pendant 48 heures maximum.</p>
 <p><a href="/admin/logout">Se déconnecter</a> · <a href="/">← Retour au traducteur</a></p>
-<div id="error"></div><div id="jobs"></div>
+<div id="error"></div><div class="filters"><button class="filter active" data-filter="all" onclick="setFilter('all')">Toutes</button><button class="filter" data-filter="translated" onclick="setFilter('translated')">Images traduites</button><button class="filter" data-filter="uploaded" onclick="setFilter('uploaded')">Images envoyées</button></div><div id="jobs"></div>
 </div>
 <script>
-function fmtDate(ts){return new Date(ts*1000).toLocaleString('fr-FR')}
+let currentFilter="all"; function setFilter(v){currentFilter=v; document.querySelectorAll(".filter").forEach(x=>x.classList.toggle("active",x.dataset.filter===v)); renderJobs()} function fmtDate(ts){return new Date(ts*1000).toLocaleString("fr-FR")}
 function fileUrl(item,f){return '/api/admin/storage/file?work_id='+encodeURIComponent(item.id)+'&path='+encodeURIComponent(f.name)}
 function esc(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;')}
 function card(item,f){
@@ -270,7 +270,7 @@ async function load(){
   try{
     const r=await fetch('/api/admin/storage',{credentials:'same-origin'});
     if(!r.ok) throw new Error('Session administrateur expirée. Recharge la page et reconnecte-toi.');
-    const data=await r.json(); const body=document.getElementById('jobs'); body.innerHTML='';
+    const data=await r.json(); window.storageItems=data.items; renderJobs(); return;
     if(!data.items.length){body.innerHTML='<div class="empty">Aucun fichier temporaire actuellement stocké.</div>';return}
     for(const item of data.items){
       const inputs=item.files.filter(f=>/^input_\\d+\\.(jpe?g|png|webp|tiff?)$/i.test(f.name));
@@ -285,6 +285,24 @@ async function load(){
       body.appendChild(section);
     }
   }catch(e){document.getElementById('error').innerHTML='<div class="error">'+esc(e.message)+'</div>'}
+}
+function renderJobs(){
+ const body=document.getElementById('jobs'); body.innerHTML='';
+ const items=window.storageItems||[];
+ if(!items.length){body.innerHTML='<div class="empty">Aucun fichier temporaire actuellement stocké.</div>';return}
+ for(const item of items){
+  const inputs=item.files.filter(f=>/^input_\d+\.(jpe?g|png|webp|tiff?)$/i.test(f.name));
+  const outputs=item.files.filter(f=>/^traduit\//i.test(f.name)&&/\.(jpe?g|png|webp|tiff?)$/i.test(f.name));
+  const zips=item.files.filter(f=>/\.zip$/i.test(f.name));
+  const showIn=currentFilter==="all"||currentFilter==="uploaded";
+  const showOut=currentFilter==="all"||currentFilter==="translated";
+  const section=document.createElement('div'); section.className='section';
+  let html='<h2>'+esc(item.id)+'</h2><div class="muted">Créé le '+fmtDate(item.created)+' · Expire le '+fmtDate(item.expires)+' · '+esc(item.size_human)+'</div>';
+  if(showIn) html+='<div class="section"><h3>Images envoyées</h3><div class="file-grid">'+(inputs.length?inputs.map(f=>card(item,f)).join(''):'<div class="muted">Aucune image envoyée.</div>')+'</div></div>';
+  if(showOut) html+='<div class="section"><h3>Images traduites</h3><div class="file-grid">'+(outputs.length?outputs.map(f=>card(item,f)).join(''):'<div class="muted">Aucune image traduite.</div>')+'</div></div>';
+  html+='<div class="zip-file"><strong>ZIP :</strong> '+(zips.length?zips.map(f=>'<a href="'+fileUrl(item,f)+'">Télécharger le ZIP</a>').join(' · '):'aucun')+'</div><p><button class="danger" onclick="removeItem(\''+esc(item.id)+'\')">Supprimer maintenant</button></p>';
+  section.innerHTML=html; body.appendChild(section);
+ }
 }
 async function removeItem(id){if(!confirm('Supprimer définitivement ce dossier et toutes ses images ?'))return;const r=await fetch('/api/admin/storage/'+encodeURIComponent(id),{method:'DELETE',credentials:'same-origin'});if(!r.ok){const d=await r.json();alert(d.error||'Erreur');return}load()}
 load();setInterval(load,60000);
