@@ -138,13 +138,13 @@ def _draw(image, box, text):
     x1, y1 = max(0, x1 - pad), max(0, y1 - pad)
     x2, y2 = min(image.width, x2 + pad), min(image.height, y2 + pad)
     draw.rectangle((x1, y1, x2, y2), fill=_background(image, (x1, y1, x2, y2)))
-    width, height = max(10, x2 - x1 - 6), max(10, y2 - y1 - 4)
+    width, height = max(10, x2 - x1 - 4), max(10, y2 - y1 - 2)
     words = text.split()
     if not words: return
 
     # Taille de départ basée directement sur la hauteur du texte original OCR.
     # Il n'y a plus de plafond à 42 px : les gros textes restent gros.
-    start_size = max(12, int(original_height * 0.95))
+    start_size = max(14, int(original_height * 1.60))
     selected = None
     for size in range(start_size, 7, -1):
         font = _font(size)
@@ -157,7 +157,7 @@ def _draw(image, box, text):
                 if current: lines.append(current)
                 current = word
         if current: lines.append(current)
-        line_h = max(10, int(size * 1.15))
+        line_h = max(10, int(size * 1.08))
         if len(lines) * line_h <= height:
             selected = (font, lines, line_h)
             break
