@@ -240,44 +240,55 @@ ADMIN_PAGE = """<!doctype html>
 <html lang="fr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Administration du stockage</title>
 <style>
-body{font-family:system-ui,-apple-system,Segoe UI,sans-serif;max-width:1100px;margin:40px auto;padding:0 20px;background:#f5f7fb;color:#18202a}.card{background:white;border-radius:18px;padding:28px;box-shadow:0 8px 30px #00000012}table{width:100%;border-collapse:collapse;margin-top:20px}th,td{text-align:left;padding:12px;border-bottom:1px solid #eaecf0;vertical-align:top}button{padding:8px 12px;border:0;border-radius:8px;background:#b42318;color:white;cursor:pointer}.muted{color:#667085}.files{font-size:.9rem;color:#475467}.file-actions{display:inline-flex;gap:8px;align-items:center;margin-left:6px}.preview-link{color:#175cd3;cursor:pointer}.empty{padding:30px;text-align:center;color:#667085}.modal{display:none;position:fixed;inset:0;background:#000b;align-items:center;justify-content:center;padding:20px;z-index:10}.modal.open{display:flex}.modal-box{position:relative;background:white;border-radius:14px;padding:14px;max-width:95vw;max-height:95vh}.modal-box img{display:block;max-width:90vw;max-height:82vh;object-fit:contain}.section{margin-top:24px;padding:18px;border:1px solid #eaecf0;border-radius:14px}.section h2{margin:0 0 12px}.file-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:14px}.file-card{border:1px solid #eaecf0;border-radius:12px;padding:10px;background:#fafafa}.file-card img{display:block;width:100%;height:150px;object-fit:contain;background:white;border-radius:8px;margin-bottom:8px}.file-name{font-size:.9rem;word-break:break-word}.file-meta{font-size:.8rem;color:#667085;margin-top:4px}.file-actions{display:flex;gap:8px;align-items:center;margin-top:8px}.file-actions a{color:#175cd3}.zip-file{margin-top:10px;padding:10px;border:1px dashed #d0d5dd;border-radius:10px}.danger{padding:8px 12px;border:0;border-radius:8px;background:#b42318;color:white;cursor:pointer}.modal-close{position:absolute;right:8px;top:8px;background:#111827;color:white;border-radius:50%;width:34px;height:34px;padding:0}
+body{font-family:system-ui,-apple-system,Segoe UI,sans-serif;max-width:1200px;margin:40px auto;padding:0 20px;background:#f5f7fb;color:#18202a}
+.card{background:white;border-radius:18px;padding:28px;box-shadow:0 8px 30px #00000012}
+.muted{color:#667085}.section{margin-top:24px;padding:18px;border:1px solid #eaecf0;border-radius:14px}
+.section h2,.section h3{margin-top:0}.file-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:16px}
+.file-card{border:1px solid #eaecf0;border-radius:12px;padding:10px;background:#fafafa}
+.file-card img{display:block;width:100%;height:170px;object-fit:contain;background:white;border-radius:8px;margin-bottom:8px}
+.file-name{font-size:.9rem;word-break:break-word}.file-meta{font-size:.8rem;color:#667085;margin-top:4px}
+.file-actions{margin-top:8px}.file-actions a{color:#175cd3;margin-right:12px}
+.zip-file{margin-top:16px;padding:12px;border:1px dashed #d0d5dd;border-radius:10px}
+.danger{padding:9px 14px;border:0;border-radius:8px;background:#b42318;color:white;cursor:pointer}
+.empty{padding:30px;text-align:center;color:#667085}
+.error{padding:14px;background:#fef3f2;color:#b42318;border-radius:10px;margin-top:15px}
 </style></head><body><div class="card">
-<h1>Administration du stockage</h1><p class="muted">Fichiers temporaires conservés pendant 48 heures maximum.</p><p><a href="/admin/logout">Se déconnecter</a></p>
-<div id="jobs"></div>
-<p><a href="/">← Retour au traducteur</a></p></div>
-<div id="previewModal" class="modal" onclick="closePreview(event)">
-  <div class="modal-box">
-    <button class="modal-close" onclick="closePreview(event)">×</button>
-    <img id="previewImage" src="" alt="Aperçu">
-  </div>
+<h1>Administration du stockage</h1>
+<p class="muted">Fichiers temporaires conservés pendant 48 heures maximum.</p>
+<p><a href="/admin/logout">Se déconnecter</a> · <a href="/">← Retour au traducteur</a></p>
+<div id="error"></div><div id="jobs"></div>
 </div>
 <script>
 function fmtDate(ts){return new Date(ts*1000).toLocaleString('fr-FR')}
 function fileUrl(item,f){return '/api/admin/storage/file?work_id='+encodeURIComponent(item.id)+'&path='+encodeURIComponent(f.name)}
-function renderCard(item,f){
+function esc(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;')}
+function card(item,f){
   const url=fileUrl(item,f);
-  return '<div class="file-card"><img src="'+url+'&preview=1" alt=""><div class="file-name">'+f.name+'</div><div class="file-meta">'+f.size_human+'</div><div class="file-actions"><a href="'+url+'">Télécharger</a></div></div>';
+  return '<div class="file-card"><img src="'+url+'&preview=1" alt=""><div class="file-name">'+esc(f.name)+'</div><div class="file-meta">'+esc(f.size_human)+'</div><div class="file-actions"><a href="'+url+'">Télécharger</a></div></div>';
 }
 async function load(){
-  const r=await fetch('/api/admin/storage'); const data=await r.json(); const body=document.getElementById('jobs'); body.innerHTML='';
-  if(!data.items.length){body.innerHTML='<div class="empty">Aucun fichier temporaire actuellement stocké.</div>';return}
-  for(const item of data.items){
-    const inputs=item.files.filter(f=>/^input_\d+\.(jpe?g|png|webp|tiff?)$/i.test(f.name));
-    const outputs=item.files.filter(f=>/^traduit\//i.test(f.name) && /\.(jpe?g|png|webp|tiff?)$/i.test(f.name));
-    const zips=item.files.filter(f=>/\.zip$/i.test(f.name));
-    const section=document.createElement('div'); section.className='section';
-    section.innerHTML='<h2>'+item.id+'</h2><div class="muted">Créé le '+fmtDate(item.created)+' · Expire le '+fmtDate(item.expires)+' · '+item.size_human+'</div>'+
-      '<div class="section"><h3>Images envoyées</h3><div class="file-grid">'+(inputs.length?inputs.map(f=>renderCard(item,f)).join(''):'<div class="muted">Aucune image envoyée.</div>')+'</div></div>'+
-      '<div class="section"><h3>Images traduites</h3><div class="file-grid">'+(outputs.length?outputs.map(f=>renderCard(item,f)).join(''):'<div class="muted">Aucune image traduite.</div>')+'</div></div>'+
-      '<div class="zip-file"><strong>ZIP :</strong> '+(zips.map(f=>'<a href="'+fileUrl(item,f)+'">Télécharger le ZIP</a>').join('')||'aucun')+'</div>'+
-      '<p><button class="danger" onclick="removeItem(\''+item.id+'\')">Supprimer maintenant</button></p>';
-    body.appendChild(section);
-  }
+  try{
+    const r=await fetch('/api/admin/storage',{credentials:'same-origin'});
+    if(!r.ok) throw new Error('Session administrateur expirée. Recharge la page et reconnecte-toi.');
+    const data=await r.json(); const body=document.getElementById('jobs'); body.innerHTML='';
+    if(!data.items.length){body.innerHTML='<div class="empty">Aucun fichier temporaire actuellement stocké.</div>';return}
+    for(const item of data.items){
+      const inputs=item.files.filter(f=>/^input_\\d+\\.(jpe?g|png|webp|tiff?)$/i.test(f.name));
+      const outputs=item.files.filter(f=>/^traduit\\//i.test(f.name)&&/\\.(jpe?g|png|webp|tiff?)$/i.test(f.name));
+      const zips=item.files.filter(f=>/\\.zip$/i.test(f.name));
+      const section=document.createElement('div'); section.className='section';
+      section.innerHTML='<h2>'+esc(item.id)+'</h2><div class="muted">Créé le '+fmtDate(item.created)+' · Expire le '+fmtDate(item.expires)+' · '+esc(item.size_human)+'</div>'+
+      '<div class="section"><h3>Images envoyées</h3><div class="file-grid">'+(inputs.length?inputs.map(f=>card(item,f)).join(''):'<div class="muted">Aucune image envoyée.</div>')+'</div></div>'+
+      '<div class="section"><h3>Images traduites</h3><div class="file-grid">'+(outputs.length?outputs.map(f=>card(item,f)).join(''):'<div class="muted">Aucune image traduite.</div>')+'</div></div>'+
+      '<div class="zip-file"><strong>ZIP :</strong> '+(zips.length?zips.map(f=>'<a href="'+fileUrl(item,f)+'">Télécharger le ZIP</a>').join(' · '):'aucun')+'</div>'+
+      '<p><button class="danger" onclick="removeItem(\\''+esc(item.id)+'\\')">Supprimer maintenant</button></p>';
+      body.appendChild(section);
+    }
+  }catch(e){document.getElementById('error').innerHTML='<div class="error">'+esc(e.message)+'</div>'}
 }
-async function removeItem(id){if(!confirm('Supprimer définitivement ce dossier et toutes ses images ?'))return;const r=await fetch('/api/admin/storage/'+encodeURIComponent(id),{method:'DELETE'});const d=await r.json();if(!r.ok)alert(d.error||'Erreur');load()}
+async function removeItem(id){if(!confirm('Supprimer définitivement ce dossier et toutes ses images ?'))return;const r=await fetch('/api/admin/storage/'+encodeURIComponent(id),{method:'DELETE',credentials:'same-origin'});if(!r.ok){const d=await r.json();alert(d.error||'Erreur');return}load()}
 load();setInterval(load,60000);
 </script></body></html>"""
-
 
 def set_job(job_id, **values):
     with LOCK:
