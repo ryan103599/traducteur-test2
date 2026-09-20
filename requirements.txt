@@ -2,4 +2,3 @@ Flask>=3.0,<4
 Werkzeug>=3.0,<4
 Pillow>=10,<12
 requests>=2.32,<3
-langdetect>=1.0.9,<2
