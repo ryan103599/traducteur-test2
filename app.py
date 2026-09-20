@@ -10,7 +10,7 @@ from pathlib import Path
 from flask import Flask, jsonify, render_template_string, request, send_file
 from werkzeug.utils import secure_filename
 
-from google_images import translate_image_with_google
+from baidu_images import translate_image_with_baidu
 
 
 app = Flask(__name__)
@@ -58,14 +58,14 @@ small{display:block;margin-top:8px;color:#667085}
 <body>
 <div class="card">
 <h1>Traducteur d'images</h1>
-<p class="muted">Une nouvelle version minimale qui utilise directement Google Traduction — mode Images.</p>
+<p class="muted">Traduction automatique des images avec l'API officielle Baidu Image Translation.</p>
 <label>Langue cible</label>
 <select id="lang">
 {% for code,name in languages.items() %}<option value="{{code}}">{{name}}</option>{% endfor %}
 </select>
 <label>Images</label>
 <input id="files" type="file" webkitdirectory directory multiple accept=".jpg,.jpeg,.png,.webp">
-<small>Choisis un dossier. Les JPG, PNG et WebP seront envoyés un par un à Google Traduction Images.</small>
+<small>Choisis un dossier. Les JPG, PNG et WebP seront envoyés un par un à Baidu Image Translation.</small>
 <button id="start">Traduire le dossier</button>
 <div id="status">En attente.</div>
 <a id="download" href="#" download>Télécharger le ZIP</a>
@@ -118,8 +118,8 @@ def worker(job_id, files, target):
             src.write_bytes(item["data"])
             name = secure_filename(Path(item["name"]).name) or f"image_{i}.png"
             dest = out / name
-            set_job(job_id, message=f"Image {i}/{total} : Google Traduction Images…")
-            translate_image_with_google(src, dest, target)
+            set_job(job_id, message=f"Image {i}/{total} : Baidu Image Translation…")
+            translate_image_with_baidu(src, dest, target)
             results.append(dest)
             set_job(job_id, message=f"Image {i}/{total} terminée")
         zip_path = work / "images_traduites.zip"
