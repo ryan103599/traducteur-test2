@@ -1,16 +1,15 @@
 from pathlib import Path
 import re
-import textwrap
+import time
 
 from PIL import Image, ImageDraw, ImageFont
 from paddleocr import PaddleOCR
 from deep_translator import GoogleTranslator
 
 
-# This module no longer automates Google Translate's image UI.
-# It uses local OCR to read the text, translates the text separately,
-# removes the detected text area, then draws the translation back into
-# the original image.
+# Google Translate's image UI is NOT used.
+# OCR is local; only the extracted text is sent to Google Translate.
+# Translation is batched to avoid the per-second request limit.
 
 
 _OCR = None
@@ -34,8 +33,6 @@ TARGET_TO_TRANSLATOR = {
 def _get_ocr():
     global _OCR
     if _OCR is None:
-        # English is the main source language currently targeted by the app.
-        # PP-OCRv5's English model is optimized for English screenshots/images.
         _OCR = PaddleOCR(
             lang="en",
             use_doc_orientation_classify=False,
@@ -101,19 +98,34 @@ def _extract_ocr(result):
     return items
 
 
-def _translate(text, target):
+def _translate_batch(texts, target):
     target = TARGET_TO_TRANSLATOR.get(target, target)
-    # Translate line-by-line to preserve short OCR fragments.
-    cleaned = re.sub(r"\s+", " ", text).strip()
-    if not cleaned:
-        return ""
+    cleaned = [re.sub(r"\\s+", " ", text).strip() for text in texts]
+    cleaned = [text for text in cleaned if text]
 
-    try:
-        return GoogleTranslator(source="auto", target=target).translate(cleaned) or cleaned
-    except Exception as exc:
-        raise RuntimeError(
-            f"Traduction du texte impossible ({target}) : {exc}"
-        ) from exc
+    if not cleaned:
+        return []
+
+    translator = GoogleTranslator(source="auto", target=target)
+
+    # One batch request instead of one request per OCR box.
+    # Retry a few times because the public Google endpoint can temporarily
+    # throttle requests.
+    last_error = None
+    for attempt in range(4):
+        try:
+            result = translator.translate_batch(cleaned)
+            if isinstance(result, list):
+                return [item or original for item, original in zip(result, cleaned)]
+            return [result or cleaned[0]]
+        except Exception as exc:
+            last_error = exc
+            if attempt < 3:
+                time.sleep(2 * (attempt + 1))
+
+    raise RuntimeError(
+        f"Traduction du texte impossible ({target}) : {last_error}"
+    ) from last_error
 
 
 def _font_candidates():
@@ -138,28 +150,25 @@ def _background_color(image, box):
     x1, y1, x2, y2 = box
     pixels = []
     sample = max(2, min(8, (x2 - x1) // 8, (y2 - y1) // 8))
+
     for x in range(x1, min(x2, x1 + sample)):
         pixels.append(image.getpixel((x, y1)))
-    for x in range(x1, min(x2, x1 + sample)):
         pixels.append(image.getpixel((x, max(y1, y2 - 1))))
+
     for y in range(y1, min(y2, y1 + sample)):
         pixels.append(image.getpixel((x1, y)))
-    for y in range(y1, min(y2, y1 + sample)):
         pixels.append(image.getpixel((max(x1, x2 - 1), y)))
 
     if not pixels:
         return (255, 255, 255)
 
-    avg = tuple(sum(p[i] for p in pixels) // len(pixels) for i in range(3))
-    return avg
+    return tuple(sum(p[i] for p in pixels) // len(pixels) for i in range(3))
 
 
 def _draw_translated_text(image, box, translated):
     draw = ImageDraw.Draw(image)
     x1, y1, x2, y2 = box
 
-    # Expand slightly around the detected text so the source lettering is
-    # fully covered.
     pad_x = max(3, (x2 - x1) // 12)
     pad_y = max(3, (y2 - y1) // 5)
     x1 = max(0, x1 - pad_x)
@@ -172,8 +181,8 @@ def _draw_translated_text(image, box, translated):
 
     width = max(10, x2 - x1 - 6)
     height = max(10, y2 - y1 - 4)
-
     base_size = max(10, min(42, int(height * 0.78)))
+
     words = translated.split()
     if not words:
         return
@@ -182,6 +191,7 @@ def _draw_translated_text(image, box, translated):
         font = _font(size)
         lines = []
         current = ""
+
         for word in words:
             candidate = word if not current else current + " " + word
             if draw.textbbox((0, 0), candidate, font=font)[2] <= width:
@@ -190,6 +200,7 @@ def _draw_translated_text(image, box, translated):
                 if current:
                     lines.append(current)
                 current = word
+
         if current:
             lines.append(current)
 
@@ -224,27 +235,31 @@ def translate_image_with_google(source: Path, destination: Path, target: str) ->
         raise RuntimeError(f"OCR impossible : {exc}") from exc
 
     if not items:
-        # No text detected: preserve the image instead of inventing content.
         image.save(destination)
         return
 
-    translated_items = []
+    usable = []
     for item in items:
         text = item["text"]
-        # Ignore isolated punctuation/noise.
-        if len(re.sub(r"[^\wÀ-ÿ一-龥ぁ-んァ-ン]", "", text)) < 2:
+        if len(re.sub(r"[^\\wÀ-ÿ一-龥ぁ-んァ-ン]", "", text)) < 2:
             continue
-        translated = _translate(text, target)
-        if translated and translated.strip() != text.strip():
+        usable.append(item)
+
+    if not usable:
+        image.save(destination)
+        return
+
+    translations = _translate_batch([item["text"] for item in usable], target)
+
+    translated_items = []
+    for item, translated in zip(usable, translations):
+        if translated and translated.strip() != item["text"].strip():
             translated_items.append((item["box"], translated))
 
     if not translated_items:
-        raise RuntimeError(
-            "Le texte a été détecté mais aucune traduction différente n'a été produite."
-        )
+        image.save(destination)
+        return
 
-    # Paint from top to bottom. Each OCR region is handled independently,
-    # which works well for subtitles, screenshots, labels and speech bubbles.
     for box, translated in sorted(
         translated_items, key=lambda x: (x[0][1], x[0][0])
     ):
