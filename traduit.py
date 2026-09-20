@@ -6,29 +6,23 @@ import cv2, numpy as np, os, tempfile
 IMAGE_EXTENSIONS=(".png",".jpg",".jpeg",".webp",".bmp")
 SUPPORTED_LANGUAGES={"fr","en","es","de","it","pt","ja","ko","zh-CN","zh-TW","ru","ar"}
 
-# Limites volontairement basses pour éviter qu'une très grande image fasse
-# exploser la RAM (Paddle peut tenter d'allouer plusieurs Go).
-OCR_MAX_SIDE=1600
-try:
-    ocr=PaddleOCR(
-        lang="en",
-        use_doc_orientation_classify=False,
-        use_doc_unwarping=False,
-        use_textline_orientation=False,
-        enable_mkldnn=False,
-        text_det_limit_side_len=OCR_MAX_SIDE,
-        text_det_limit_type="max",
-    )
-except TypeError:
-    ocr=PaddleOCR(
-        lang="en",
-        use_doc_orientation_classify=False,
-        use_doc_unwarping=False,
-        use_textline_orientation=False,
-        use_mkldnn=False,
-        text_det_limit_side_len=OCR_MAX_SIDE,
-        text_det_limit_type="max",
-    )
+# OCR léger : le modèle server par défaut peut consommer plusieurs Go de RAM.
+# Le modèle mobile est beaucoup plus adapté à un PC classique.
+OCR_MAX_SIDE=960
+OCR_CPU_THREADS=2
+
+ocr=PaddleOCR(
+    text_detection_model_name="PP-OCRv5_mobile_det",
+    text_recognition_model_name="PP-OCRv5_mobile_rec",
+    lang="en",
+    use_doc_orientation_classify=False,
+    use_doc_unwarping=False,
+    use_textline_orientation=False,
+    enable_mkldnn=False,
+    cpu_threads=OCR_CPU_THREADS,
+    text_det_limit_side_len=OCR_MAX_SIDE,
+    text_det_limit_type="max",
+)
 
 FONT_PATHS=[r"C:\Windows\Fonts\arial.ttf",r"/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",r"/System/Library/Fonts/Supplemental/Arial.ttf"]
 font_path=next((p for p in FONT_PATHS if os.path.exists(p)),None)
@@ -86,8 +80,6 @@ def translate_image(input_image,output_image,target="fr"):
     if target not in SUPPORTED_LANGUAGES:raise ValueError(f"Langue non supportée: {target}")
     if not os.path.isfile(input_image):raise FileNotFoundError(input_image)
 
-    # On fait l'OCR sur une copie réduite. Cela évite les allocations RAM
-    # énormes sur les scans/comics très haute résolution.
     original=Image.open(input_image).convert("RGB")
     ow,oh=original.size
     scale=min(1.0,OCR_MAX_SIDE/max(ow,oh))
@@ -99,7 +91,7 @@ def translate_image(input_image,output_image,target="fr"):
             ocr_image=original.resize((nw,nh),Image.Resampling.LANCZOS)
             fd,temp_path=tempfile.mkstemp(suffix=".jpg")
             os.close(fd)
-            ocr_image.save(temp_path,"JPEG",quality=90)
+            ocr_image.save(temp_path,"JPEG",quality=88)
             ocr_source=temp_path
         else:
             ocr_source=input_image
@@ -108,16 +100,21 @@ def translate_image(input_image,output_image,target="fr"):
     finally:
         if temp_path and os.path.exists(temp_path):os.remove(temp_path)
 
-    if not result:return False
-    data=result[0];texts=data.get("rec_texts",[]);boxes=data.get("rec_boxes",[])
+    if not result:
+        original.save(output_image,"PNG")
+        return output_image
+
+    data=result[0]
+    texts=data.get("rec_texts",[])
+    boxes=data.get("rec_boxes",[])
     items=[]
-    # Les coordonnées OCR sont remises à l'échelle de l'image originale.
     inv=1.0/scale
     for text,box in zip(texts,boxes):
         text=str(text).strip()
         if not text:continue
         x1,y1,x2,y2=[int(float(v)*inv) for v in box]
         items.append({"text":text,"x1":x1,"y1":y1,"x2":x2,"y2":y2,"cx":(x1+x2)/2,"cy":(y1+y2)/2,"height":max(1,y2-y1)})
+
     if not items:
         original.save(output_image,"PNG")
         return output_image
@@ -128,9 +125,11 @@ def translate_image(input_image,output_image,target="fr"):
 
     image=remove_text(original,[i for b in blocks for i in b["items"]])
     draw=ImageDraw.Draw(image)
+
     for b in blocks:
         h=int(np.median([i["height"] for i in b["items"]]))
-        base=max(8,int(h*.9));left=max(0,b["x1"]-max(5,int(h*.45)));top=max(0,b["y1"]-max(5,int(h*.45)))
+        base=max(8,int(h*.9))
+        left=max(0,b["x1"]-max(5,int(h*.45)));top=max(0,b["y1"]-max(5,int(h*.45)))
         right=min(image.width,b["x2"]+max(5,int(h*.45)));bottom=min(image.height,b["y2"]+max(5,int(h*.45)))
         aw=max(80,right-left);ah=max(20,bottom-top);size=base
         while size>7:
