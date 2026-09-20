@@ -1,4 +1,6 @@
 from pathlib import Path
+from urllib.parse import parse_qs, urlparse
+
 from playwright.sync_api import sync_playwright, TimeoutError as PlaywrightTimeoutError
 
 BASE_URL = "https://translate.google.fr/?hl=fr&sl=auto&tl={target}"
@@ -60,11 +62,29 @@ def _click_images_tab(page):
     return False
 
 
+def _assert_target_language(page, target):
+    # The target language must remain the requested one after Google loads
+    # the Images interface. If Google silently resets it, do not download
+    # an image in the wrong language.
+    try:
+        query = parse_qs(urlparse(page.url).query)
+        current = query.get("tl", [None])[0]
+        if current and current != target:
+            raise RuntimeError(
+                f"Google Traduction a chargé la mauvaise langue cible ({current} au lieu de {target})."
+            )
+    except RuntimeError:
+        raise
+    except Exception:
+        pass
+
+
 def _open_image_mode(page, target):
     page.goto(IMAGES_URL.format(target=target), wait_until="domcontentloaded", timeout=60000)
     page.wait_for_timeout(5000)
     _dismiss_google_consent(page)
     page.wait_for_timeout(2000)
+    _assert_target_language(page, target)
 
     if _find_file_input(page) is not None:
         return
@@ -74,6 +94,7 @@ def _open_image_mode(page, target):
     _dismiss_google_consent(page)
     _click_images_tab(page)
     page.wait_for_timeout(5000)
+    _assert_target_language(page, target)
 
 
 def _choose_image_file(page, source):
@@ -137,46 +158,49 @@ def _choose_image_file(page, source):
 
 
 def _wait_for_translated_image(page):
-    # Google documente que ces contrôles apparaissent une fois l'image traduite.
-    markers = [
-        "Afficher le texte original",
-        "Agrandir le texte traduit",
-        "Copier le texte",
-        "Télécharger la traduction",
-        "Download translation",
-    ]
-
-    for _ in range(60):
-        for frame in [page] + list(page.frames):
-            for marker in markers:
-                try:
-                    loc = frame.get_by_text(marker, exact=False)
-                    if loc.count():
-                        for i in range(loc.count()):
-                            if loc.nth(i).is_visible():
-                                return
-                except Exception:
-                    pass
+    # Do not accept generic page text as proof that translation is complete.
+    # Google explicitly exposes a translated-image download control only
+    # after the image result is ready.
+    for _ in range(90):
+        button = _find_download_control(page)
+        if button is not None:
+            return
         page.wait_for_timeout(1000)
 
     raise RuntimeError(
-        "Google a reçu l'image mais n'a pas affiché le résultat de traduction."
+        "Google a reçu l'image mais n'a pas affiché le bouton de téléchargement de l'image traduite."
     )
 
 
-def _wait_for_download_control(page):
-    # IMPORTANT : ne pas utiliser le simple libellé « Télécharger ».
-    # Google possède plusieurs téléchargements sur la page.
-    labels = [
+def _find_download_control(page):
+    # Current Google Translate accessibility labels include both the action
+    # and the word Image. Prefer an exact aria-label match before broader
+    # role/name matching so we never hit an unrelated download control.
+    patterns = [
+        "Télécharger la traduction Image",
+        "Download translation Image",
         "Télécharger la traduction",
         "Download translation",
     ]
 
     for frame in [page] + list(page.frames):
-        for label in labels:
+        for pattern in patterns:
+            try:
+                loc = frame.locator(
+                    f'[aria-label*="{pattern}"]'
+                )
+                for i in range(loc.count()):
+                    candidate = loc.nth(i)
+                    if candidate.is_visible():
+                        return candidate
+            except Exception:
+                pass
+
+    for frame in [page] + list(page.frames):
+        for pattern in patterns:
             for role in ("button", "link"):
                 try:
-                    loc = frame.get_by_role(role, name=label, exact=False)
+                    loc = frame.get_by_role(role, name=pattern, exact=False)
                     for i in range(loc.count()):
                         candidate = loc.nth(i)
                         if candidate.is_visible():
@@ -184,27 +208,17 @@ def _wait_for_download_control(page):
                 except Exception:
                     pass
 
-    # L'accessibility name peut contenir « Image » après le libellé.
-    for frame in [page] + list(page.frames):
-        for pattern in ["Télécharger la traduction Image", "Download translation Image"]:
-            try:
-                loc = frame.get_by_label(pattern, exact=False)
-                if loc.count():
-                    for i in range(loc.count()):
-                        if loc.nth(i).is_visible():
-                            return loc.nth(i)
-            except Exception:
-                pass
+    return None
 
+
+def _save_debug(page):
     try:
         page.screenshot(path="/tmp/google_translate_result.png", full_page=True)
-        Path("/tmp/google_translate_result.html").write_text(page.content(), encoding="utf-8")
+        Path("/tmp/google_translate_result.html").write_text(
+            page.content(), encoding="utf-8"
+        )
     except Exception:
         pass
-
-    raise RuntimeError(
-        "L'image a été traduite mais le bouton « Télécharger la traduction » est introuvable."
-    )
 
 
 def translate_image_with_google(source: Path, destination: Path, target: str) -> None:
@@ -232,11 +246,23 @@ def translate_image_with_google(source: Path, destination: Path, target: str) ->
             _open_image_mode(page, target)
             _choose_image_file(page, source)
 
-            # Ne télécharge surtout pas avant que Google ait réellement
-            # affiché le résultat de traduction.
-            _wait_for_translated_image(page)
+            # Wait specifically for Google's translated-image download control.
+            button = None
+            for _ in range(90):
+                button = _find_download_control(page)
+                if button is not None:
+                    break
+                page.wait_for_timeout(1000)
 
-            button = _wait_for_download_control(page)
+            if button is None:
+                _save_debug(page)
+                raise RuntimeError(
+                    "Google a traité l'image mais le bouton « Télécharger la traduction Image » est introuvable."
+                )
+
+            # Give the rendered translated image a moment to finish updating.
+            page.wait_for_timeout(1500)
+
             with page.expect_download(timeout=60000) as download_info:
                 button.click()
 
@@ -245,7 +271,23 @@ def translate_image_with_google(source: Path, destination: Path, target: str) ->
             if not destination.exists() or destination.stat().st_size == 0:
                 raise RuntimeError("Google n'a pas fourni l'image traduite.")
 
+            # A translated image should not be byte-for-byte identical to the
+            # uploaded image when Google had actual text to translate.
+            # We only reject exact identity when the files have the same bytes;
+            # this avoids silently packaging the original download.
+            try:
+                if source.read_bytes() == destination.read_bytes():
+                    raise RuntimeError(
+                        "Google a téléchargé une image identique à l'originale. "
+                        "La traduction d'image n'a probablement pas été appliquée."
+                    )
+            except RuntimeError:
+                raise
+            except Exception:
+                pass
+
         except PlaywrightTimeoutError as exc:
+            _save_debug(page)
             raise RuntimeError(
                 "Google Traduction a mis trop de temps à charger, traduire ou télécharger l'image."
             ) from exc
