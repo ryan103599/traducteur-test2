@@ -1,18 +1,39 @@
 from pathlib import Path
 from playwright.sync_api import sync_playwright, TimeoutError as PlaywrightTimeoutError
 
-BASE_URL = "https://translate.google.com/?hl=fr&sl=auto&tl={target}"
-IMAGES_URL = "https://translate.google.com/?hl=fr&sl=auto&tl={target}&op=images"
+# Le domaine .fr évite certaines redirections régionales de Google.
+BASE_URL = "https://translate.google.fr/?hl=fr&sl=auto&tl={target}"
+IMAGES_URL = "https://translate.google.fr/?hl=fr&sl=auto&tl={target}&op=images"
+
+
+def _dismiss_google_consent(page):
+    # Google peut afficher un écran de consentement avant de charger Traduction.
+    labels = [
+        "Tout accepter",
+        "J'accepte",
+        "Accepter tout",
+        "Accept all",
+        "I agree",
+    ]
+    for frame in [page] + list(page.frames):
+        for label in labels:
+            try:
+                loc = frame.get_by_role("button", name=label, exact=True)
+                for i in range(loc.count()):
+                    button = loc.nth(i)
+                    if button.is_visible():
+                        button.click()
+                        page.wait_for_timeout(2500)
+                        return
+            except Exception:
+                pass
 
 
 def _find_file_input(page):
-    # Cherche dans la page principale puis dans les éventuelles frames.
-    pages = [page] + list(page.frames)
-    for frame in pages:
+    for frame in [page] + list(page.frames):
         try:
             loc = frame.locator('input[type="file"]')
-            count = loc.count()
-            for i in range(count):
+            for i in range(loc.count()):
                 candidate = loc.nth(i)
                 accept = (candidate.get_attribute("accept") or "").lower()
                 if not accept or any(
@@ -25,11 +46,21 @@ def _find_file_input(page):
 
 
 def _click_images_tab(page):
-    # L'interface actuelle expose bien un onglet "Images", mais le DOM
-    # peut varier entre les versions de Google.
-    for role in ("tab", "button", "link"):
+    for frame in [page] + list(page.frames):
+        for role in ("tab", "button", "link"):
+            try:
+                loc = frame.get_by_role(role, name="Images", exact=True)
+                for i in range(loc.count()):
+                    candidate = loc.nth(i)
+                    if candidate.is_visible():
+                        candidate.click()
+                        page.wait_for_timeout(3000)
+                        return True
+            except Exception:
+                pass
+
         try:
-            loc = page.get_by_role(role, name="Images", exact=True)
+            loc = frame.get_by_text("Images", exact=True)
             for i in range(loc.count()):
                 candidate = loc.nth(i)
                 if candidate.is_visible():
@@ -38,55 +69,32 @@ def _click_images_tab(page):
                     return True
         except Exception:
             pass
-
-    try:
-        loc = page.get_by_text("Images", exact=True)
-        for i in range(loc.count()):
-            candidate = loc.nth(i)
-            if candidate.is_visible():
-                candidate.click()
-                page.wait_for_timeout(3000)
-                return True
-    except Exception:
-        pass
-
     return False
 
 
 def _open_image_mode(page, target):
-    # URL officielle du mode Images.
-    page.goto(
-        IMAGES_URL.format(target=target),
-        wait_until="domcontentloaded",
-        timeout=60000,
-    )
-
-    # Laisser les composants Google et leurs scripts s'initialiser.
-    page.wait_for_timeout(7000)
+    page.goto(IMAGES_URL.format(target=target), wait_until="domcontentloaded", timeout=60000)
+    page.wait_for_timeout(5000)
+    _dismiss_google_consent(page)
+    page.wait_for_timeout(2500)
 
     if _find_file_input(page) is not None:
         return
 
-    # Si Google a ignoré op=images, revenir à la page principale et cliquer
-    # réellement sur l'onglet Images.
-    page.goto(
-        BASE_URL.format(target=target),
-        wait_until="domcontentloaded",
-        timeout=60000,
-    )
+    # Fallback : page principale + onglet Images.
+    page.goto(BASE_URL.format(target=target), wait_until="domcontentloaded", timeout=60000)
     page.wait_for_timeout(5000)
+    _dismiss_google_consent(page)
     _click_images_tab(page)
     page.wait_for_timeout(5000)
 
 
 def _choose_image_file(page, source):
-    # 1. Input file directement présent.
     image_input = _find_file_input(page)
     if image_input is not None:
         image_input.set_input_files(str(source))
         return
 
-    # 2. Google peut créer le file chooser seulement après le clic.
     labels = [
         "Parcourir vos fichiers",
         "Sélectionnez un fichier",
@@ -95,9 +103,9 @@ def _choose_image_file(page, source):
         "Browse your files",
     ]
 
-    # On cherche dans toutes les frames.
-    frames = [page] + list(page.frames)
-    for frame in frames:
+    # Important : il y a deux zones "Parcourir vos fichiers" sur la page
+    # (Documents puis Images). On essaie tous les éléments visibles.
+    for frame in [page] + list(page.frames):
         for label in labels:
             try:
                 loc = frame.get_by_text(label, exact=True)
@@ -105,17 +113,23 @@ def _choose_image_file(page, source):
                     candidate = loc.nth(i)
                     if not candidate.is_visible():
                         continue
-                    with page.expect_file_chooser(timeout=10000) as chooser_info:
-                        candidate.click()
-                    chooser_info.value.set_files(str(source))
-                    return
-            except PlaywrightTimeoutError:
-                continue
+                    try:
+                        with page.expect_file_chooser(timeout=5000) as chooser_info:
+                            candidate.click()
+                        chooser_info.value.set_files(str(source))
+                        return
+                    except PlaywrightTimeoutError:
+                        # Le clic peut simplement révéler l'input.
+                        page.wait_for_timeout(1000)
+                        image_input = _find_file_input(page)
+                        if image_input is not None:
+                            image_input.set_input_files(str(source))
+                            return
             except Exception:
-                continue
+                pass
 
-    # 3. Même chose avec les boutons accessibles.
-    for frame in frames:
+    # Dernier recours : cliquer sur un bouton accessible.
+    for frame in [page] + list(page.frames):
         for label in labels:
             try:
                 loc = frame.get_by_role("button", name=label, exact=False)
@@ -123,27 +137,33 @@ def _choose_image_file(page, source):
                     candidate = loc.nth(i)
                     if not candidate.is_visible():
                         continue
-                    with page.expect_file_chooser(timeout=10000) as chooser_info:
-                        candidate.click()
-                    chooser_info.value.set_files(str(source))
-                    return
-            except PlaywrightTimeoutError:
-                continue
+                    try:
+                        with page.expect_file_chooser(timeout=5000) as chooser_info:
+                            candidate.click()
+                        chooser_info.value.set_files(str(source))
+                        return
+                    except PlaywrightTimeoutError:
+                        image_input = _find_file_input(page)
+                        if image_input is not None:
+                            image_input.set_input_files(str(source))
+                            return
             except Exception:
-                continue
+                pass
 
-    # Diagnostic utile si Google change à nouveau son DOM.
+    # Diagnostic exploitable : URL, titre et texte visible de la page.
     try:
+        debug_text = page.locator("body").inner_text(timeout=5000)
+        debug_text = " ".join(debug_text.split())[:1200]
         page.screenshot(path="/tmp/google_translate_debug.png", full_page=True)
-        html = page.content()
-        Path("/tmp/google_translate_debug.html").write_text(html, encoding="utf-8")
+        Path("/tmp/google_translate_debug.html").write_text(
+            page.content(), encoding="utf-8"
+        )
     except Exception:
-        pass
+        debug_text = "(texte de page indisponible)"
 
     raise RuntimeError(
         "Impossible d'ouvrir l'import d'image de Google Traduction. "
-        "Google a probablement affiché une page différente (consentement, "
-        "anti-bot ou interface modifiée)."
+        f"URL={page.url} | Titre={page.title()} | Page={debug_text}"
     )
 
 
@@ -154,7 +174,6 @@ def _wait_for_download_control(page):
         "Download translation",
         "Download",
     ]
-
     for label in labels:
         for role in ("button", "link"):
             try:
@@ -199,22 +218,15 @@ def translate_image_with_google(source: Path, destination: Path, target: str) ->
             accept_downloads=True,
             locale="fr-FR",
             viewport={"width": 1440, "height": 1100},
-            user_agent=(
-                "Mozilla/5.0 (X11; Linux x86_64) "
-                "AppleWebKit/537.36 (KHTML, like Gecko) "
-                "Chrome/140.0.0.0 Safari/537.36"
-            ),
         )
         page = context.new_page()
 
         try:
             _open_image_mode(page, target)
             _choose_image_file(page, source)
-
-            # Attendre l'apparition du résultat et du téléchargement.
             page.wait_for_timeout(6000)
-            button = _wait_for_download_control(page)
 
+            button = _wait_for_download_control(page)
             with page.expect_download(timeout=60000) as download_info:
                 button.click()
 
