@@ -6,7 +6,27 @@ import cv2, numpy as np, os
 IMAGE_EXTENSIONS=(".png",".jpg",".jpeg",".webp",".bmp")
 SUPPORTED_LANGUAGES={"fr","en","es","de","it","pt","ja","ko","zh-CN","zh-TW","ru","ar"}
 
-ocr=PaddleOCR(lang="en",use_doc_orientation_classify=False,use_doc_unwarping=False,use_textline_orientation=False)
+# Désactive oneDNN/MKLDNN : certaines versions de PaddlePaddle lèvent
+# "ConvertPirAttribute2RuntimeAttribute not support ArrayAttribute<Double>".
+try:
+    ocr=PaddleOCR(
+        lang="en",
+        use_doc_orientation_classify=False,
+        use_doc_unwarping=False,
+        use_textline_orientation=False,
+        enable_mkldnn=False,
+    )
+except TypeError:
+    # Compatibilité avec les versions de PaddleOCR qui utilisent le nom
+    # use_mkldnn au lieu de enable_mkldnn.
+    ocr=PaddleOCR(
+        lang="en",
+        use_doc_orientation_classify=False,
+        use_doc_unwarping=False,
+        use_textline_orientation=False,
+        use_mkldnn=False,
+    )
+
 FONT_PATHS=[r"C:\Windows\Fonts\arial.ttf",r"/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",r"/System/Library/Fonts/Supplemental/Arial.ttf"]
 font_path=next((p for p in FONT_PATHS if os.path.exists(p)),None)
 
@@ -56,8 +76,7 @@ def remove_text(image,items):
 def translate_texts(texts,target):
     translator=GoogleTranslator(source="auto",target=target)
     try:return translator.translate_batch(texts)
-    except Exception:
-        return [translator.translate(t) for t in texts]
+    except Exception:return [translator.translate(t) for t in texts]
 
 def translate_image(input_image,output_image,target="fr"):
     input_image=os.path.abspath(input_image)
