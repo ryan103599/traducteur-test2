@@ -308,7 +308,7 @@ function render(){
       html+='<div class="section"><h3>Images traduites</h3><div class="file-grid">'+(outputs.length?outputs.map(function(file){return card(item,file);}).join(""):'<div class="muted">Aucune image traduite.</div>')+'</div></div>';
     }
     html+='<div class="zip-file"><strong>ZIP :</strong> '+(zips.length?zips.map(function(file){return '<a href="'+fileUrl(item,file)+'">Télécharger le ZIP</a>';}).join(" · "):"aucun")+'</div>';
-    html+='<p><button type="button" class="danger" data-delete="'+esc(item.id)+'">Supprimer maintenant</button></p>';
+    html+='<p><button type="button" class="danger" onclick="deleteItem(\''+esc(item.id)+'\', this)">Supprimer maintenant</button></p>';
     section.innerHTML=html;
     body.appendChild(section);
   });
@@ -328,19 +328,31 @@ async function load(){
 document.querySelectorAll(".filter").forEach(function(button){
   button.addEventListener("click",function(){setFilter(button.dataset.filter);});
 });
-document.getElementById("jobs").addEventListener("click",async function(event){
-  const button=event.target.closest("[data-delete]");
-  if(!button) return;
-  const id=button.dataset.delete;
+async function deleteItem(id, button){
   if(!confirm("Supprimer définitivement ce dossier et toutes ses images ?")) return;
-  button.disabled=true; button.textContent="Suppression…"; const response=await fetch("/api/admin/storage/"+encodeURIComponent(id),{method:"POST",credentials:"same-origin",cache:"no-store"});
-  if(!response.ok){
-    let data={}; try{data=await response.json();}catch(e){}
-    alert(data.error||"Erreur lors de la suppression.");
-    button.disabled=false; button.textContent="Supprimer maintenant";
-    return;
+  button.disabled=true;
+  button.textContent="Suppression…";
+  try{
+    const response=await fetch("/api/admin/storage/"+encodeURIComponent(id),{
+      method:"POST",
+      credentials:"same-origin",
+      headers:{"X-Requested-With":"XMLHttpRequest"},
+      cache:"no-store"
+    });
+    const text=await response.text();
+    let data={};
+    try{data=JSON.parse(text);}catch(e){}
+    if(!response.ok){
+      throw new Error(data.error||("Erreur HTTP "+response.status));
+    }
+    await load();
+  }catch(error){
+    alert(error.message);
+    button.disabled=false;
+    button.textContent="Supprimer maintenant";
   }
-  await load();
+}
+load();
 });
 load();
 setInterval(load,10000);
