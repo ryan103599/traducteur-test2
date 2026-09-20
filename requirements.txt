@@ -2,3 +2,4 @@ Flask>=3.0,<4
 Werkzeug>=3.0,<4
 Pillow>=10,<12
 requests>=2.32,<3
+lara-sdk>=1.12,<2
