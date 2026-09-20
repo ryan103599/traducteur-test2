@@ -276,6 +276,8 @@ async function load(){
       const inputs=item.files.filter(f=>/^input_\\d+\\.(jpe?g|png|webp|tiff?)$/i.test(f.name));
       const outputs=item.files.filter(f=>/^traduit\\//i.test(f.name)&&/\\.(jpe?g|png|webp|tiff?)$/i.test(f.name));
       const zips=item.files.filter(f=>/\\.zip$/i.test(f.name));
+      const showInputs=currentFilter==='all'||currentFilter==='uploaded';
+      const showOutputs=currentFilter==='all'||currentFilter==='translated';
       const section=document.createElement('div'); section.className='section';
       section.innerHTML='<h2>'+esc(item.id)+'</h2><div class="muted">Créé le '+fmtDate(item.created)+' · Expire le '+fmtDate(item.expires)+' · '+esc(item.size_human)+'</div>'+
       (showInputs?'<div class="section"><h3>Images envoyées</h3><div class="file-grid">'+(inputs.length?inputs.map(f=>card(item,f)).join(''):'<div class="muted">Aucune image envoyée.</div>')+'</div></div>':'')+
