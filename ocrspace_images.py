@@ -93,7 +93,7 @@ def _group_lines(lines):
 
             # Use the line height, not the accumulated group height, to decide
             # whether two consecutive lines are close enough to be one block.
-            max_gap = max(10, max(h, gh) * 2.50)
+            max_gap = max(4, min(h, gh) * 0.60)
             if gap < -min(h, gh) * 0.25 or gap > max_gap:
                 continue
 
@@ -106,8 +106,8 @@ def _group_lines(lines):
             # overlapping. Do not merge merely because their left edges happen
             # to be close on a large page.
             close_x = (
-                horizontal_overlap >= 0.05
-                or center_distance <= max(18, max(x2 - x1, gx2 - gx1) * 0.75)
+                horizontal_overlap >= 0.45
+                or center_distance <= max(8, min(h, gh) * 1.2)
             )
             if close_x:
                 placed = group
@@ -235,13 +235,13 @@ def _draw(image, box, text, source_font_size, cleanup_boxes=None):
     # Erase only the original OCR line areas, not the whole grouped bubble.
     for cleanup in cleanup_boxes or [box]:
         cx1, cy1, cx2, cy2 = cleanup
-        pad_x, pad_y = 1, 1
+        pad_x, pad_y = 0, 0
         rx1, ry1 = max(0, cx1 - pad_x), max(0, cy1 - pad_y)
         rx2, ry2 = min(image.width, cx2 + pad_x), min(image.height, cy2 + pad_y)
         draw.rectangle((rx1, ry1, rx2, ry2), fill=_background(image, (rx1, ry1, rx2, ry2)))
 
-    pad_x = max(3, min(8, original_width // 40))
-    pad_y = max(2, min(6, original_height // 20))
+    pad_x = 1
+    pad_y = 1
     x1, y1 = max(0, ox1 - pad_x), max(0, oy1 - pad_y)
     x2, y2 = min(image.width, ox2 + pad_x), min(image.height, oy2 + pad_y)
 
