@@ -1,5 +1,5 @@
 from paddleocr import PaddleOCR
-from deep_translator import GoogleTranslator
+from deep_translator import GoogleTranslator, MyMemoryTranslator
 from PIL import Image, ImageDraw, ImageFont
 import cv2, numpy as np, os, tempfile
 
@@ -72,47 +72,45 @@ def remove_text(image,items):
 
 def translate_texts(texts,target):
     """
-    Traduit les blocs en limitant fortement les requêtes Google Translate.
-    On privilégie translate_batch() pour éviter une requête HTTP par bloc.
-    En cas de rate-limit (TooManyRequests), on attend puis on réessaie.
+    Traduction avec plusieurs moteurs.
+    MyMemory est essayé en premier pour éviter le blocage actuel de
+    Google Translate via deep-translator. Google reste un secours.
     """
     if not texts:
         return []
 
+    # MyMemory supporte aussi translate_batch() et l'auto-détection.
+    # On l'utilise en premier afin de ne plus dépendre de la limite
+    # Google qui bloque actuellement l'adresse IP de la machine.
+    try:
+        translator=MyMemoryTranslator(source="auto",target=target)
+        translations=translator.translate_batch(texts)
+        if translations and len(translations)==len(texts):
+            return translations
+    except Exception as exc:
+        print(f"MyMemory indisponible, tentative Google : {exc}")
+
+    # Secours Google : une seule requête batch, puis quelques retries.
     translator=GoogleTranslator(source="auto",target=target)
-
-    # Une seule requête batch pour l'image dans la majorité des cas.
-    for attempt in range(3):
-        try:
-            return translator.translate_batch(texts)
-        except Exception as exc:
-            message=str(exc).lower()
-            if "toomanyrequests" not in message and "too many requests" not in message:
-                break
-            import time
-            time.sleep(2 * (attempt + 1))
-
-    # Secours : traduction bloc par bloc, mais volontairement limitée
-    # à <= 4 requêtes/seconde pour rester sous la limite annoncée.
     import time
-    translations=[]
-    for text in texts:
-        translated=None
-        for attempt in range(3):
-            try:
-                translated=translator.translate(text)
-                break
-            except Exception as exc:
-                message=str(exc).lower()
-                if "toomanyrequests" not in message and "too many requests" not in message:
-                    raise
-                time.sleep(2 * (attempt + 1))
-        if translated is None:
-            raise RuntimeError("Google Translate refuse temporairement les requêtes (TooManyRequests). Réessayez dans quelques instants.")
-        translations.append(translated)
-        time.sleep(0.26)
+    last_error=None
+    for attempt in range(4):
+        try:
+            translations=translator.translate_batch(texts)
+            if translations and len(translations)==len(texts):
+                return translations
+        except Exception as exc:
+            last_error=exc
+            message=str(exc).lower()
+            if "toomanyrequests" in message or "too many requests" in message:
+                time.sleep(3 * (attempt + 1))
+            else:
+                raise
 
-    return translations
+    raise RuntimeError(
+        "Aucun service de traduction n'est disponible actuellement. "
+        f"MyMemory a échoué et Google refuse les requêtes : {last_error}"
+    )
 
 def translate_image(input_image,output_image,target="fr"):
     input_image=os.path.abspath(input_image)
