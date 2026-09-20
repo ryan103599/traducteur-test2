@@ -1,0 +1,8 @@
+paddleocr
+paddlepaddle
+deep-translator
+Pillow
+opencv-python
+numpy
+Flask
+Werkzeug
