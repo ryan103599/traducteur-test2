@@ -26,14 +26,19 @@ LANGUAGES = {
     "es": "Espagnol",
     "de": "Allemand",
     "it": "Italien",
-    "pt": "Portugais",
+    "vi": "Vietnamien",
+    "th": "Thaï",
+    "id": "Indonésien",
     "ja": "Japonais",
     "ko": "Coréen",
     "zh-CN": "Chinois simplifié",
     "zh-TW": "Chinois traditionnel",
     "ru": "Russe",
-    "ar": "Arabe",
 }
+
+
+SOURCE_LANGUAGES = {"auto": "Détection automatique", **LANGUAGES}
+
 
 PAGE = """<!doctype html>
 <html lang="fr">
@@ -62,7 +67,7 @@ small{display:block;margin-top:8px;color:#667085}
 <label>Langue source</label>
 <select id="source">
 <option value="auto">Détection automatique</option>
-{% for code,name in languages.items() %}<option value="{{code}}">{{name}}</option>{% endfor %}
+{% for code,name in source_languages.items() %}<option value="{{code}}">{{name}}</option>{% endfor %}
 </select>
 <label>Langue cible</label>
 <select id="lang">
@@ -141,7 +146,7 @@ def worker(job_id, files, source, target):
 
 @app.get("/")
 def index():
-    return render_template_string(PAGE, languages=LANGUAGES)
+    return render_template_string(PAGE, languages=LANGUAGES, source_languages=SOURCE_LANGUAGES)
 
 
 @app.post("/translate")
