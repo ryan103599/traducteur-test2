@@ -333,16 +333,17 @@ document.getElementById("jobs").addEventListener("click",async function(event){
   if(!button) return;
   const id=button.dataset.delete;
   if(!confirm("Supprimer définitivement ce dossier et toutes ses images ?")) return;
-  const response=await fetch("/api/admin/storage/"+encodeURIComponent(id),{method:"DELETE",credentials:"same-origin"});
+  button.disabled=true; button.textContent="Suppression…"; const response=await fetch("/api/admin/storage/"+encodeURIComponent(id),{method:"DELETE",credentials:"same-origin",cache:"no-store"});
   if(!response.ok){
     let data={}; try{data=await response.json();}catch(e){}
     alert(data.error||"Erreur lors de la suppression.");
+    button.disabled=false; button.textContent="Supprimer maintenant";
     return;
   }
-  load();
+  await load();
 });
 load();
-setInterval(load,60000);
+setInterval(load,10000);
 </script></body></html>""";
 
 
