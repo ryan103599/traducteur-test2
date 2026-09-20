@@ -1,8 +1,5 @@
-import os
-import shutil
 import tempfile
 import threading
-import time
 import uuid
 import zipfile
 from pathlib import Path
@@ -11,6 +8,7 @@ from flask import Flask, jsonify, render_template_string, request, send_file
 from werkzeug.utils import secure_filename
 
 from lara_images import translate_image_with_lara
+from lara_usage import get_usage, record_image
 
 
 app = Flask(__name__)
@@ -36,9 +34,7 @@ LANGUAGES = {
     "ru": "Russe",
 }
 
-
 SOURCE_LANGUAGES = {"auto": "Détection automatique", **LANGUAGES}
-
 
 PAGE = """<!doctype html>
 <html lang="fr">
@@ -58,6 +54,8 @@ button:disabled{opacity:.5;cursor:not-allowed}
 #download{display:none;margin-top:18px}.ok{background:#ecfdf3!important;color:#067647}
 .err{background:#fef3f2!important;color:#b42318}
 small{display:block;margin-top:8px;color:#667085}
+.usage-row{display:flex;gap:20px;flex-wrap:wrap;margin-top:10px}
+.usage-item{min-width:190px}.usage-value{font-size:1.35rem;font-weight:700}
 </style>
 </head>
 <body>
@@ -74,17 +72,43 @@ small{display:block;margin-top:8px;color:#667085}
 {% for code,name in languages.items() %}<option value="{{code}}">{{name}}</option>{% endfor %}
 </select>
 <label>Images</label>
-<input id="files" type="file" webkitdirectory directory multiple accept=".jpg,.jpeg,.png,.webp">
-<small>Choisis un dossier. JPG, PNG, WebP et TIFF sont envoyés directement à Lara, qui renvoie l’image déjà traduite.</small>
+<input id="files" type="file" webkitdirectory directory multiple accept=".jpg,.jpeg,.png,.webp,.tif,.tiff">
+<small>Choisis un dossier. Les images sont envoyées directement à Lara, qui renvoie l’image déjà traduite.</small>
 <button id="start">Traduire le dossier</button>
-<div id="quota" style="margin-top:18px;padding:14px;border:1px solid #d0d5dd;border-radius:10px;background:#fafafa">\n<strong>Quota Lara API</strong><br>\n<span id="quotaText">10 000 caractères/mois (forfait API Free)</span><br>\n<small>Le solde exact de l’API n’est pas exposé par le SDK public. Utilise le tableau de bord Lara pour le compteur officiel.</small><br>\n<a href="https://laratranslate.com/account/api" target="_blank" rel="noopener">Voir le quota exact sur Lara →</a>\n</div>\n<div id="status">En attente.</div>\n<a id="download" href="#" download>Télécharger le ZIP</a>
+
+<div id="quota" style="margin-top:18px;padding:14px;border:1px solid #d0d5dd;border-radius:10px;background:#fafafa">
+<strong>Utilisation Lara — ce mois</strong>
+<div class="usage-row">
+  <div class="usage-item">Images traduites<div id="usageImages" class="usage-value">—</div></div>
+  <div class="usage-item">Coût estimé<div id="usageCost" class="usage-value">—</div></div>
+  <div class="usage-item">Tarif<div id="usagePrice" class="usage-value">—</div></div>
+</div>
+<small>Compteur local basé sur les traductions d’images réussies via Lara. L’estimation utilise le tarif Inpainting de l’application ; elle ne remplace pas le solde officiel Lara.</small>
+<a href="https://laratranslate.com/account/api" target="_blank" rel="noopener">Voir l’utilisation officielle Lara →</a>
+</div>
+
+<div id="status">En attente.</div>
+<a id="download" href="#" download>Télécharger le ZIP</a>
 </div>
 <script>
 const start=document.getElementById("start"), files=document.getElementById("files");
 const source=document.getElementById("source"), lang=document.getElementById("lang"), status=document.getElementById("status"), download=document.getElementById("download");
+const usageImages=document.getElementById("usageImages"), usageCost=document.getElementById("usageCost"), usagePrice=document.getElementById("usagePrice");
+
 function setStatus(t,c=""){status.textContent=t;status.className=c}
+
+async function refreshUsage(){
+  try{
+    const u=await fetch("/api/lara-usage").then(r=>r.json());
+    usageImages.textContent=u.images+" image"+(u.images>1?"s":"");
+    usageCost.textContent=u.estimated_cost_eur.toFixed(2).replace(".",",")+" €";
+    usagePrice.textContent=u.price_eur_per_image.toFixed(2).replace(".",",")+" €/image";
+  }catch(e){}
+}
+refreshUsage();
+
 start.onclick=async()=>{
- const selected=[...files.files].filter(f=>/\.(jpe?g|png|webp)$/i.test(f.name));
+ const selected=[...files.files].filter(f=>/\.(jpe?g|png|webp|tiff?)$/i.test(f.name));
  if(!selected.length){setStatus("Choisis un dossier contenant des images.","err");return}
  start.disabled=true; download.style.display="none"; setStatus("Envoi des images…");
  const fd=new FormData(); fd.append("source",source.value); fd.append("target",lang.value);
@@ -98,9 +122,9 @@ start.onclick=async()=>{
      setStatus(s.message||"Traitement…");
      if(s.state==="done"){
        download.href="/download/"+data.job; download.style.display="block"; download.textContent="Télécharger le ZIP";
-       setStatus(s.message,"ok"); break;
+       setStatus(s.message,"ok"); await refreshUsage(); break;
      }
-     if(s.state==="error"){setStatus(s.message||"Erreur","err");break}
+     if(s.state==="error"){setStatus(s.message||"Erreur","err"); await refreshUsage(); break}
    }
  }catch(e){setStatus(e.message||"Erreur","err")}
  finally{start.disabled=false}
@@ -122,13 +146,17 @@ def worker(job_id, files, source, target):
     try:
         total = len(files)
         results = []
+        billed_images = 0
         for i, item in enumerate(files, 1):
             src = work / f"input_{i}{Path(item['name']).suffix.lower()}"
             src.write_bytes(item["data"])
             name = secure_filename(Path(item["name"]).name) or f"image_{i}.png"
             dest = out / name
             set_job(job_id, message=f"Image {i}/{total} : Lara Translate…")
-            translate_image_with_lara(src, dest, target, source)
+            used_lara = translate_image_with_lara(src, dest, target, source)
+            if used_lara:
+                record_image()
+                billed_images += 1
             results.append(dest)
             set_job(job_id, message=f"Image {i}/{total} terminée")
         zip_path = work / "images_traduites.zip"
@@ -136,7 +164,8 @@ def worker(job_id, files, source, target):
         with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_DEFLATED) as z:
             for path in results:
                 z.write(path, path.name)
-        set_job(job_id, state="done", message=f"{total} image(s) traduite(s).", zip=str(zip_path))
+        suffix = f" ({billed_images} appel(s) Lara)" if billed_images != total else ""
+        set_job(job_id, state="done", message=f"{total} image(s) traduite(s).{suffix}", zip=str(zip_path))
     except Exception as exc:
         set_job(job_id, state="error", message=f"❌ {type(exc).__name__}: {exc}")
     finally:
@@ -146,6 +175,11 @@ def worker(job_id, files, source, target):
 @app.get("/")
 def index():
     return render_template_string(PAGE, languages=LANGUAGES, source_languages=SOURCE_LANGUAGES)
+
+
+@app.get("/api/lara-usage")
+def lara_usage():
+    return jsonify(get_usage())
 
 
 @app.post("/translate")
