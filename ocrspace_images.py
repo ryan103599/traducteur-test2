@@ -129,23 +129,49 @@ def _background(image, box):
     return tuple(sum(p[i] for p in pts) // len(pts) for i in range(3))
 
 
-def _draw(image, box, text):
+def _estimate_original_font_size(words):
+    """Estimate the source font size from OCR word boxes, not line height."""
+    heights = []
+    for word in words:
+        box = word.get("box")
+        if not box:
+            continue
+        h = box[3] - box[1]
+        if h >= 4:
+            heights.append(h)
+    if not heights:
+        return 14
+    heights.sort()
+    # OCR boxes include ascenders/descenders and a little padding. The
+    # median is more stable than using the height of a whole OCR line.
+    median = heights[len(heights) // 2]
+    return max(8, int(median * 1.55))
+
+
+def _draw(image, box, text, source_font_size):
     draw = ImageDraw.Draw(image)
-    x1, y1, x2, y2 = box
-    original_height = max(10, y2 - y1)
-    original_width = max(10, x2 - x1)
-    pad = max(4, min(14, original_width // 10))
-    x1, y1 = max(0, x1 - pad), max(0, y1 - pad)
-    x2, y2 = min(image.width, x2 + pad), min(image.height, y2 + pad)
+    ox1, oy1, ox2, oy2 = box
+    original_height = max(10, oy2 - oy1)
+    original_width = max(10, ox2 - ox1)
+
+    # Keep a modest expansion around the detected text. This gives translated
+    # text a little more room without covering unrelated artwork.
+    pad_x = max(4, min(20, original_width // 12))
+    pad_y = max(4, min(10, original_height // 3))
+    x1, y1 = max(0, ox1 - pad_x), max(0, oy1 - pad_y)
+    x2, y2 = min(image.width, ox2 + pad_x), min(image.height, oy2 + pad_y)
+
     draw.rectangle((x1, y1, x2, y2), fill=_background(image, (x1, y1, x2, y2)))
     width, height = max(10, x2 - x1 - 4), max(10, y2 - y1 - 2)
     words = text.split()
-    if not words: return
+    if not words:
+        return
 
-    # Taille de départ basée directement sur la hauteur du texte original OCR.
-    # Il n'y a plus de plafond à 42 px : les gros textes restent gros.
-    start_size = max(14, int(original_height * 1.60))
+    # Start from an estimate of the actual source character size. We do not
+    # derive the size from the whole line bounding box anymore.
+    start_size = max(10, int(source_font_size))
     selected = None
+
     for size in range(start_size, 7, -1):
         font = _font(size)
         lines, current = [], ""
@@ -154,9 +180,12 @@ def _draw(image, box, text):
             if draw.textbbox((0, 0), candidate, font=font)[2] <= width:
                 current = candidate
             else:
-                if current: lines.append(current)
+                if current:
+                    lines.append(current)
                 current = word
-        if current: lines.append(current)
+        if current:
+            lines.append(current)
+
         line_h = max(10, int(size * 1.08))
         if len(lines) * line_h <= height:
             selected = (font, lines, line_h)
@@ -166,6 +195,7 @@ def _draw(image, box, text):
         font, lines, line_h = _font(8), [text], 10
     else:
         font, lines, line_h = selected
+
     y = y1 + max(0, (height - len(lines) * line_h) // 2)
     for line in lines:
         bbox = draw.textbbox((0, 0), line, font=font)
@@ -185,6 +215,12 @@ def translate_image_with_ocrspace(source: Path, destination: Path, target: str, 
     if detected == target:
         image.save(destination)
         return
+
+    # Estimate the original character size from individual OCR words. Using
+    # the line box height made the previous implementation systematically
+    # undersize the replacement font.
+    source_font_size = _estimate_original_font_size(items)
+
     cache, translated = {}, []
     for item in items:
         text = item["text"]
@@ -193,6 +229,7 @@ def translate_image_with_ocrspace(source: Path, destination: Path, target: str, 
         value = cache[text]
         if value and value.strip() != text.strip():
             translated.append((item["box"], value))
+
     for box, value in translated:
-        _draw(image, box, value)
+        _draw(image, box, value, source_font_size)
     image.save(destination)
