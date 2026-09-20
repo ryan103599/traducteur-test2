@@ -77,8 +77,7 @@ small{display:block;margin-top:8px;color:#667085}
 <input id="files" type="file" webkitdirectory directory multiple accept=".jpg,.jpeg,.png,.webp">
 <small>Choisis un dossier. JPG, PNG, WebP et TIFF sont envoyés directement à Lara, qui renvoie l’image déjà traduite.</small>
 <button id="start">Traduire le dossier</button>
-<div id="status">En attente.</div>
-<a id="download" href="#" download>Télécharger le ZIP</a>
+<div id="quota" style="margin-top:18px;padding:14px;border:1px solid #d0d5dd;border-radius:10px;background:#fafafa">\n<strong>Quota Lara API</strong><br>\n<span id="quotaText">10 000 caractères/mois (forfait API Free)</span><br>\n<small>Le solde exact de l’API n’est pas exposé par le SDK public. Utilise le tableau de bord Lara pour le compteur officiel.</small><br>\n<a href="https://laratranslate.com/account/api" target="_blank" rel="noopener">Voir le quota exact sur Lara →</a>\n</div>\n<div id="status">En attente.</div>\n<a id="download" href="#" download>Télécharger le ZIP</a>
 </div>
 <script>
 const start=document.getElementById("start"), files=document.getElementById("files");
