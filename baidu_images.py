@@ -7,7 +7,9 @@ import requests
 from PIL import Image
 
 
-# Baidu Image Translation API-V2.0.\n# The current Baidu V2.0 product uses this public endpoint; its internal path remains /v1.\nBAIDU_IMAGE_URL = "https://aip.baidubce.com/file/2.0/mt/pictrans/v1"
+# Baidu Image Translation API V2.0.
+# Endpoint public utilisé par l'API Image Translation.
+BAIDU_IMAGE_URL = "https://aip.baidubce.com/file/2.0/mt/pictrans/v1"
 
 TARGET_TO_BAIDU = {
     "fr": "fra",
