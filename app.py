@@ -111,7 +111,7 @@ def set_job(job_id, **values):
         JOBS.setdefault(job_id, {}).update(values)
 
 
-def worker(job_id, files, target):
+def worker(job_id, files, source, target):
     work = Path(tempfile.mkdtemp(prefix="traducteur_"))
     out = work / "traduit"
     out.mkdir()
@@ -159,7 +159,10 @@ def translate():
         return jsonify(error="Aucune image JPG, PNG ou WebP valide."), 400
     job = uuid.uuid4().hex
     set_job(job, state="running", message="Démarrage…")
-    threading.Thread(target=worker, args=(job, items, target), daemon=True).start()
+    source = request.form.get("source", "auto")
+    if source != "auto" and source not in LANGUAGES:
+        return jsonify(error="Langue source invalide."), 400
+    threading.Thread(target=worker, args=(job, items, source, target), daemon=True).start()
     return jsonify(job=job)
 
 
