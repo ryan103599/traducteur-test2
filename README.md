@@ -10,17 +10,22 @@ Baidu indique actuellement **1 000 appels gratuits par mois** pour l'API de trad
 
 ## Configuration
 
-L'application a besoin d'une clé API Baidu et d'une clé secrète. Elles ne doivent **pas** être mises dans GitHub.
+L'application utilise la nouvelle authentification Baidu **API Key (bce-v3)**. Elle n'a besoin que de la valeur **API Key** ; aucune Secret Key n'est nécessaire avec ce mode d'authentification.
 
 Sous WSL/Linux :
 
 ```bash
 export BAIDU_API_KEY="ta_api_key"
-export BAIDU_SECRET_KEY="ta_secret_key"
 bash run.sh
 ```
 
-Le programme récupère automatiquement un `access_token` auprès de Baidu et le réutilise pendant sa durée de validité.
+L'API Key est envoyée dans l'en-tête HTTP :
+
+```
+Authorization: Bearer <API_KEY>
+```
+
+Ne mets jamais ta clé dans GitHub.
 
 ## Utilisation
 
@@ -38,4 +43,4 @@ Pour l'API Image Translation, Baidu indique notamment une taille maximale de 4 M
 
 ## Sécurité
 
-Les clés API sont lues uniquement depuis les variables d'environnement `BAIDU_API_KEY` et `BAIDU_SECRET_KEY`. Ne les committe jamais dans le dépôt.
+La clé API est lue uniquement depuis la variable d'environnement `BAIDU_API_KEY`. Ne la committe jamais dans le dépôt.
