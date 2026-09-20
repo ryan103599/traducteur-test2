@@ -14,7 +14,7 @@ echo "======================================"
 echo " Traducteur d'images"
 echo " Baidu Image Translation API"
 echo "======================================"
-echo " Variables requises : BAIDU_API_KEY et BAIDU_SECRET_KEY"
+echo " Variable requise : BAIDU_API_KEY"
 echo " Local  : http://127.0.0.1:8686"
 echo " Réseau : http://$(hostname -I | awk '{print $1}'):8686"
 echo
