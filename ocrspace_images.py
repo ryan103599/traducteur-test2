@@ -74,7 +74,7 @@ def _ocr(source: Path):
 
 
 def _group_lines(lines):
-    """Group OCR lines that visually belong to the same speech/text block."""
+    """Group only genuinely adjacent OCR lines; avoid merging distant bubbles."""
     if not lines:
         return []
 
@@ -86,25 +86,32 @@ def _group_lines(lines):
         h = max(1, y2 - y1)
         placed = None
 
-        # Try to attach the line to an existing nearby block.
         for group in reversed(groups):
             gx1, gy1, gx2, gy2 = group["box"]
             gh = max(1, gy2 - gy1)
             gap = y1 - gy2
 
-            # Same text block usually has a small vertical gap.
-            max_gap = max(h, gh) * 1.35
-            if gap < -max(h, gh) * 0.25 or gap <= max_gap:
-                overlap = max(0, min(x2, gx2) - max(x1, gx1))
-                min_width = max(1, min(x2 - x1, gx2 - gx1))
-                horizontal_overlap = overlap / min_width
+            # Use the line height, not the accumulated group height, to decide
+            # whether two consecutive lines are close enough to be one block.
+            max_gap = max(4, max(h, gh) * 0.75)
+            if gap < -min(h, gh) * 0.25 or gap > max_gap:
+                continue
 
-                # Require either horizontal alignment or a clear overlap.
-                # This prevents unrelated neighbouring bubbles from merging.
-                close_x = horizontal_overlap >= 0.25 or abs(x1 - gx1) <= max(h, gh) * 2.5
-                if close_x:
-                    placed = group
-                    break
+            overlap = max(0, min(x2, gx2) - max(x1, gx1))
+            min_width = max(1, min(x2 - x1, gx2 - gx1))
+            horizontal_overlap = overlap / min_width
+            center_distance = abs((x1 + x2) / 2 - (gx1 + gx2) / 2)
+
+            # Lines in a bubble are normally aligned or substantially
+            # overlapping. Do not merge merely because their left edges happen
+            # to be close on a large page.
+            close_x = (
+                horizontal_overlap >= 0.40
+                or center_distance <= max(h, gh) * 1.5
+            )
+            if close_x:
+                placed = group
+                break
 
         if placed is None:
             groups.append({
@@ -117,37 +124,6 @@ def _group_lines(lines):
             bx1, by1, bx2, by2 = placed["box"]
             placed["box"] = (min(bx1, x1), min(by1, y1), max(bx2, x2), max(by2, y2))
             placed["word_heights"].extend(line["word_heights"])
-
-    # A second merge pass handles groups that became connected through an
-    # intermediate line.
-    changed = True
-    while changed:
-        changed = False
-        merged = []
-        while groups:
-            current = groups.pop(0)
-            cx1, cy1, cx2, cy2 = current["box"]
-            merged_with = False
-            for other in groups:
-                ox1, oy1, ox2, oy2 = other["box"]
-                vertical_gap = max(oy1 - cy2, cy1 - oy2, 0)
-                overlap = max(0, min(cx2, ox2) - max(cx1, ox1))
-                min_width = max(1, min(cx2 - cx1, ox2 - ox1))
-                if vertical_gap <= max(cy2 - cy1, oy2 - oy1) * 0.8 and overlap / min_width >= 0.30:
-                    current["lines"].extend(other["lines"])
-                    current["word_heights"].extend(other["word_heights"])
-                    current["box"] = (
-                        min(cx1, ox1), min(cy1, oy1),
-                        max(cx2, ox2), max(cy2, oy2),
-                    )
-                    groups.remove(other)
-                    groups.insert(0, current)
-                    changed = True
-                    merged_with = True
-                    break
-            if not merged_with:
-                merged.append(current)
-        groups = merged
 
     result = []
     for group in groups:
@@ -256,16 +232,11 @@ def _draw(image, box, text, source_font_size):
 
     draw.rectangle((x1, y1, x2, y2), fill=_background(image, (x1, y1, x2, y2)))
 
-    font = _font(source_font_size)
     available_w = max(20, x2 - x1 - 8)
     available_h = max(20, y2 - y1 - 8)
-
-    # Preserve explicit line breaks created by the OCR grouping.
     paragraphs = text.splitlines() or [text]
     selected = None
 
-    # Keep the original font height whenever possible. If the translated block
-    # needs more vertical room, reduce only as a last resort.
     for size in range(max(10, source_font_size), 7, -1):
         font = _font(size)
         all_lines = []
@@ -312,7 +283,10 @@ def _draw(image, box, text, source_font_size):
 
 def translate_image_with_ocrspace(source: Path, destination: Path, target: str, source_lang: str = "auto") -> None:
     source, destination = Path(source), Path(destination)
-    image = Image.open(source).convert("RGB")
+    with Image.open(source) as original:
+        original_size = original.size
+        image = original.convert("RGB")
+
     items = _ocr(source)
     if not items:
         image.save(destination)
@@ -334,5 +308,10 @@ def translate_image_with_ocrspace(source: Path, destination: Path, target: str, 
 
     for item, value in translated:
         _draw(image, item["box"], value, _estimate_original_font_size(item))
+
+    # Never change the source canvas dimensions. The translation is an edit
+    # inside the original canvas, not a crop or resize operation.
+    if image.size != original_size:
+        image = image.resize(original_size, Image.Resampling.LANCZOS)
 
     image.save(destination)
