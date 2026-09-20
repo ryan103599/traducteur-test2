@@ -21,7 +21,7 @@ fi
 echo
 echo "======================================"
 echo " Traducteur d'images"
-echo " NAVER Papago Image Translation"
+echo " Lara Translate Image Translation"
 echo "======================================"
 echo " Configuration : fichier .env (local)"
 echo " Local  : http://127.0.0.1:8686"
