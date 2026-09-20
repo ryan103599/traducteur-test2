@@ -10,7 +10,7 @@ from pathlib import Path
 from flask import Flask, jsonify, render_template_string, request, send_file
 from werkzeug.utils import secure_filename
 
-from baidu_images import translate_image_with_baidu
+from ocrspace_images import translate_image_with_ocrspace
 
 
 app = Flask(__name__)
@@ -58,27 +58,32 @@ small{display:block;margin-top:8px;color:#667085}
 <body>
 <div class="card">
 <h1>Traducteur d'images</h1>
-<p class="muted">Traduction automatique des images avec l'API officielle Baidu Image Translation.</p>
+<p class="muted">Traduction automatique des images avec OCR.space + MyMemory.</p>
+<label>Langue source</label>
+<select id="source">
+<option value="auto">Détection automatique</option>
+{% for code,name in languages.items() %}<option value="{{code}}">{{name}}</option>{% endfor %}
+</select>
 <label>Langue cible</label>
 <select id="lang">
 {% for code,name in languages.items() %}<option value="{{code}}">{{name}}</option>{% endfor %}
 </select>
 <label>Images</label>
 <input id="files" type="file" webkitdirectory directory multiple accept=".jpg,.jpeg,.png,.webp">
-<small>Choisis un dossier. Les JPG, PNG et WebP seront envoyés un par un à Baidu Image Translation.</small>
+<small>Choisis un dossier. Les JPG, PNG et WebP seront envoyés un par un à OCR.space, puis traduits.</small>
 <button id="start">Traduire le dossier</button>
 <div id="status">En attente.</div>
 <a id="download" href="#" download>Télécharger le ZIP</a>
 </div>
 <script>
 const start=document.getElementById("start"), files=document.getElementById("files");
-const lang=document.getElementById("lang"), status=document.getElementById("status"), download=document.getElementById("download");
+const source=document.getElementById("source"), lang=document.getElementById("lang"), status=document.getElementById("status"), download=document.getElementById("download");
 function setStatus(t,c=""){status.textContent=t;status.className=c}
 start.onclick=async()=>{
  const selected=[...files.files].filter(f=>/\.(jpe?g|png|webp)$/i.test(f.name));
  if(!selected.length){setStatus("Choisis un dossier contenant des images.","err");return}
  start.disabled=true; download.style.display="none"; setStatus("Envoi des images…");
- const fd=new FormData(); fd.append("target",lang.value);
+ const fd=new FormData(); fd.append("source",source.value); fd.append("target",lang.value);
  selected.forEach(f=>fd.append("files",f,f.webkitRelativePath||f.name));
  try{
    const r=await fetch("/translate",{method:"POST",body:fd});
@@ -118,8 +123,8 @@ def worker(job_id, files, target):
             src.write_bytes(item["data"])
             name = secure_filename(Path(item["name"]).name) or f"image_{i}.png"
             dest = out / name
-            set_job(job_id, message=f"Image {i}/{total} : Baidu Image Translation…")
-            translate_image_with_baidu(src, dest, target)
+            set_job(job_id, message=f"Image {i}/{total} : OCR.space + traduction…")
+            translate_image_with_ocrspace(src, dest, target, source)
             results.append(dest)
             set_job(job_id, message=f"Image {i}/{total} terminée")
         zip_path = work / "images_traduites.zip"
