@@ -113,8 +113,10 @@ def _translate_one(text, source, target):
 def _font(size):
     for path in ("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", "/usr/share/fonts/truetype/liberation2/LiberationSans-Regular.ttf", "/usr/share/fonts/opentype/noto/NotoSans-Regular.ttf"):
         if Path(path).exists():
-            try: return ImageFont.truetype(path, size)
-            except Exception: pass
+            try:
+                return ImageFont.truetype(path, size)
+            except Exception:
+                pass
     return ImageFont.load_default()
 
 
@@ -125,83 +127,71 @@ def _background(image, box):
         pts += [image.getpixel((x, y1)), image.getpixel((x, max(y1, y2 - 1)))]
     for y in range(y1, min(y2, y1 + 6)):
         pts += [image.getpixel((x1, y)), image.getpixel((max(x1, x2 - 1), y))]
-    if not pts: return (255, 255, 255)
+    if not pts:
+        return (255, 255, 255)
     return tuple(sum(p[i] for p in pts) // len(pts) for i in range(3))
 
 
-def _estimate_original_font_size(words):
-    """Estimate the source font size from OCR word boxes, not line height."""
+def _estimate_original_font_size(items):
+    """Estimate the actual source character height from individual OCR words."""
     heights = []
-    for word in words:
-        box = word.get("box")
-        if not box:
-            continue
-        h = box[3] - box[1]
-        if h >= 4:
-            heights.append(h)
+    for item in items:
+        box = item.get("box")
+        if box:
+            h = box[3] - box[1]
+            if h >= 4:
+                heights.append(h)
     if not heights:
         return 14
     heights.sort()
-    # OCR boxes include ascenders/descenders and a little padding. The
-    # median is more stable than using the height of a whole OCR line.
     median = heights[len(heights) // 2]
-    return max(8, int(median * 1.55))
+    # PIL font size is larger than the visible glyph height. This ratio is
+    # intentionally based on glyph height, not the whole line bounding box.
+    return max(10, int(median * 1.45))
 
 
 def _draw(image, box, text, source_font_size):
+    """Draw at the original vertical size; compress horizontally instead of shrinking the font."""
     draw = ImageDraw.Draw(image)
     ox1, oy1, ox2, oy2 = box
     original_height = max(10, oy2 - oy1)
     original_width = max(10, ox2 - ox1)
 
-    # Keep a modest expansion around the detected text. This gives translated
-    # text a little more room without covering unrelated artwork.
-    pad_x = max(4, min(20, original_width // 12))
-    pad_y = max(4, min(10, original_height // 3))
+    # The original text rectangle is the reference. A small expansion is used
+    # only for the background cleanup.
+    pad_x = max(4, min(16, original_width // 12))
+    pad_y = max(3, min(8, original_height // 4))
     x1, y1 = max(0, ox1 - pad_x), max(0, oy1 - pad_y)
     x2, y2 = min(image.width, ox2 + pad_x), min(image.height, oy2 + pad_y)
 
-    draw.rectangle((x1, y1, x2, y2), fill=_background(image, (x1, y1, x2, y2)))
-    width, height = max(10, x2 - x1 - 4), max(10, y2 - y1 - 2)
-    words = text.split()
-    if not words:
-        return
+    bg = _background(image, (x1, y1, x2, y2))
+    draw.rectangle((x1, y1, x2, y2), fill=bg)
 
-    # Start from an estimate of the actual source character size. We do not
-    # derive the size from the whole line bounding box anymore.
-    start_size = max(10, int(source_font_size))
-    selected = None
+    font = _font(max(10, int(source_font_size)))
+    text_bbox = draw.textbbox((0, 0), text, font=font)
+    text_w = max(1, text_bbox[2] - text_bbox[0])
+    text_h = max(1, text_bbox[3] - text_bbox[1])
 
-    for size in range(start_size, 7, -1):
-        font = _font(size)
-        lines, current = [], ""
-        for word in words:
-            candidate = word if not current else current + " " + word
-            if draw.textbbox((0, 0), candidate, font=font)[2] <= width:
-                current = candidate
-            else:
-                if current:
-                    lines.append(current)
-                current = word
-        if current:
-            lines.append(current)
+    # IMPORTANT: never reduce the font height because the translation is
+    # longer. If it is wider than the source box, render it at the original
+    # height and horizontally compress the rendered pixels. This preserves
+    # the apparent font size much better than reducing the font to fit.
+    target_w = max(10, x2 - x1 - 4)
+    target_h = max(10, y2 - y1 - 4)
+    scale_x = min(1.0, target_w / text_w)
+    rendered_w = max(1, int(text_w * scale_x))
+    rendered_h = text_h
 
-        line_h = max(10, int(size * 1.08))
-        if len(lines) * line_h <= height:
-            selected = (font, lines, line_h)
-            break
+    layer = Image.new("RGBA", (text_w + 8, text_h + 8), (0, 0, 0, 0))
+    layer_draw = ImageDraw.Draw(layer)
+    layer_draw.text((4 - text_bbox[0], 4 - text_bbox[1]), text, fill=(0, 0, 0, 255), font=font)
 
-    if selected is None:
-        font, lines, line_h = _font(8), [text], 10
-    else:
-        font, lines, line_h = selected
-
-    y = y1 + max(0, (height - len(lines) * line_h) // 2)
-    for line in lines:
-        bbox = draw.textbbox((0, 0), line, font=font)
-        tw = bbox[2] - bbox[0]
-        draw.text((x1 + max(0, (width - tw) // 2), y), line, fill=(0, 0, 0), font=font)
-        y += line_h
+    if scale_x < 1.0:
+        layer = layer.resize((rendered_w + 8, rendered_h + 8), Image.Resampling.LANCZOS)
+        rendered_w += 0
+    paste_x = x1 + max(0, (target_w - rendered_w) // 2)
+    paste_y = y1 + max(0, (target_h - rendered_h) // 2)
+    image.paste(layer, (paste_x, paste_y), layer)
 
 
 def translate_image_with_ocrspace(source: Path, destination: Path, target: str, source_lang: str = "auto") -> None:
@@ -216,9 +206,6 @@ def translate_image_with_ocrspace(source: Path, destination: Path, target: str, 
         image.save(destination)
         return
 
-    # Estimate the original character size from individual OCR words. Using
-    # the line box height made the previous implementation systematically
-    # undersize the replacement font.
     source_font_size = _estimate_original_font_size(items)
 
     cache, translated = {}, []
