@@ -93,7 +93,7 @@ def _group_lines(lines):
 
             # Use the line height, not the accumulated group height, to decide
             # whether two consecutive lines are close enough to be one block.
-            max_gap = max(4, max(h, gh) * 0.75)
+            max_gap = max(6, max(h, gh) * 1.20)
             if gap < -min(h, gh) * 0.25 or gap > max_gap:
                 continue
 
@@ -106,8 +106,8 @@ def _group_lines(lines):
             # overlapping. Do not merge merely because their left edges happen
             # to be close on a large page.
             close_x = (
-                horizontal_overlap >= 0.40
-                or center_distance <= max(h, gh) * 1.5
+                horizontal_overlap >= 0.20
+                or center_distance <= max(12, min(x2 - x1, gx2 - gx1) * 0.35)
             )
             if close_x:
                 placed = group
@@ -200,15 +200,22 @@ def _font(size):
 
 
 def _background(image, box):
+    """Estimate local bubble background from a thin ring around the text box."""
     x1, y1, x2, y2 = box
     pts = []
-    for x in range(x1, min(x2, x1 + 6)):
-        pts += [image.getpixel((x, y1)), image.getpixel((x, max(y1, y2 - 1)))]
-    for y in range(y1, min(y2, y1 + 6)):
-        pts += [image.getpixel((x1, y)), image.getpixel((max(x1, x2 - 1), y))]
+    for x in range(x1, x2):
+        if 0 <= y1 < image.height:
+            pts.append(image.getpixel((x, y1)))
+        if 0 <= y2 - 1 < image.height:
+            pts.append(image.getpixel((x, y2 - 1)))
+    for y in range(y1, y2):
+        if 0 <= x1 < image.width:
+            pts.append(image.getpixel((x1, y)))
+        if 0 <= x2 - 1 < image.width:
+            pts.append(image.getpixel((x2 - 1, y)))
     if not pts:
         return (255, 255, 255)
-    return tuple(sum(p[i] for p in pts) // len(pts) for i in range(3))
+    return tuple(sorted(p[i] for p in pts)[len(pts) // 2] for i in range(3))
 
 
 def _estimate_original_font_size(item):
@@ -219,21 +226,27 @@ def _estimate_original_font_size(item):
     return max(10, int(heights[len(heights) // 2] * 1.45))
 
 
-def _draw(image, box, text, source_font_size):
+def _draw(image, box, text, source_font_size, cleanup_boxes=None):
     draw = ImageDraw.Draw(image)
     ox1, oy1, ox2, oy2 = box
     original_height = max(10, oy2 - oy1)
     original_width = max(10, ox2 - ox1)
 
-    pad_x = max(5, min(18, original_width // 14))
-    pad_y = max(5, min(14, original_height // 8))
+    # Erase only the original OCR line areas, not the whole grouped bubble.
+    for cleanup in cleanup_boxes or [box]:
+        cx1, cy1, cx2, cy2 = cleanup
+        pad_x, pad_y = 2, 2
+        rx1, ry1 = max(0, cx1 - pad_x), max(0, cy1 - pad_y)
+        rx2, ry2 = min(image.width, cx2 + pad_x), min(image.height, cy2 + pad_y)
+        draw.rectangle((rx1, ry1, rx2, ry2), fill=_background(image, (rx1, ry1, rx2, ry2)))
+
+    pad_x = max(4, min(10, original_width // 30))
+    pad_y = max(3, min(8, original_height // 16))
     x1, y1 = max(0, ox1 - pad_x), max(0, oy1 - pad_y)
     x2, y2 = min(image.width, ox2 + pad_x), min(image.height, oy2 + pad_y)
 
-    draw.rectangle((x1, y1, x2, y2), fill=_background(image, (x1, y1, x2, y2)))
-
-    available_w = max(20, x2 - x1 - 8)
-    available_h = max(20, y2 - y1 - 8)
+    available_w = max(20, x2 - x1 - 4)
+    available_h = max(20, y2 - y1 - 4)
     paragraphs = text.splitlines() or [text]
     selected = None
 
@@ -255,29 +268,21 @@ def _draw(image, box, text, source_font_size):
                     current = word
             if current:
                 all_lines.append(current)
-
         line_h = max(10, int(size * 1.12))
         if all_lines and len(all_lines) * line_h <= available_h:
             selected = (font, all_lines, line_h)
             break
 
     if selected is None:
-        font = _font(8)
-        selected = (font, [text.replace("\n", " ")], 10)
+        selected = (_font(8), [text.replace("\n", " ")], 10)
 
     font, lines, line_h = selected
     total_h = len(lines) * line_h
     y = y1 + max(0, (available_h - total_h) // 2)
-
     for line in lines:
         bbox = draw.textbbox((0, 0), line, font=font)
         tw = bbox[2] - bbox[0]
-        draw.text(
-            (x1 + max(0, (available_w - tw) // 2), y),
-            line,
-            fill=(0, 0, 0),
-            font=font,
-        )
+        draw.text((x1 + max(0, (available_w - tw) // 2), y), line, fill=(0, 0, 0), font=font)
         y += line_h
 
 
@@ -307,7 +312,7 @@ def translate_image_with_ocrspace(source: Path, destination: Path, target: str, 
             translated.append((item, value))
 
     for item, value in translated:
-        _draw(image, item["box"], value, _estimate_original_font_size(item))
+        _draw(image, item["box"], value, _estimate_original_font_size(item), cleanup_boxes=[line["box"] for line in item.get("lines", [])])
 
     # Never change the source canvas dimensions. The translation is an edit
     # inside the original canvas, not a crop or resize operation.
