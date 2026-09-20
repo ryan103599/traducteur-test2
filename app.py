@@ -16,6 +16,9 @@ app.config["MAX_CONTENT_LENGTH"] = 1024 * 1024 * 1024
 
 JOBS = {}
 LOCK = threading.Lock()
+RETENTION_SECONDS = 2 * 24 * 60 * 60
+CLEANUP_INTERVAL_SECONDS = 60 * 60
+TEMP_PREFIX = "traducteur_"
 ALLOWED = {".jpg", ".jpeg", ".png", ".webp", ".tif", ".tiff"}
 
 LANGUAGES = {
@@ -35,6 +38,25 @@ LANGUAGES = {
 }
 
 SOURCE_LANGUAGES = {"auto": "Détection automatique", **LANGUAGES}
+
+
+def cleanup_old_files():
+    """Supprime les dossiers de traduction temporaires vieux de plus de 2 jours."""
+    cutoff = time.time() - RETENTION_SECONDS
+    temp_root = Path(tempfile.gettempdir())
+    for work in temp_root.glob(f"{TEMP_PREFIX}*"):
+        try:
+            if work.is_dir() and work.stat().st_mtime < cutoff:
+                shutil.rmtree(work, ignore_errors=True)
+        except OSError:
+            pass
+
+
+def cleanup_loop():
+    while True:
+        cleanup_old_files()
+        time.sleep(CLEANUP_INTERVAL_SECONDS)
+
 
 PAGE = """<!doctype html>
 <html lang="fr">
@@ -224,6 +246,8 @@ def download(job_id):
 
 
 if __name__ == "__main__":
+    cleanup_old_files()
+    threading.Thread(target=cleanup_loop, daemon=True).start()
     print("Serveur local : http://127.0.0.1:8686")
     print("Serveur réseau : http://0.0.0.0:8686")
     app.run(host="0.0.0.0", port=8686, threaded=True)
