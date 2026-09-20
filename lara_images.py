@@ -38,7 +38,7 @@ def _translator():
 
 def translate_image_with_lara(
     source: Path, destination: Path, target: str, source_lang: str = "auto"
-) -> None:
+) -> bool:
     source = Path(source)
     destination = Path(destination)
 
@@ -55,7 +55,7 @@ def translate_image_with_lara(
 
     if source_lang != "auto" and source_lang == target:
         destination.write_bytes(source.read_bytes())
-        return
+        return False
 
     try:
         lara = _translator()
@@ -77,3 +77,5 @@ def translate_image_with_lara(
         destination.write_bytes(translated)
     except Exception as exc:
         raise RuntimeError(f"Impossible d'enregistrer l'image Lara : {exc}") from exc
+
+    return True
