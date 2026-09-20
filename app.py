@@ -1,3 +1,5 @@
+import hmac
+import os
 import shutil
 import tempfile
 import threading
@@ -6,7 +8,7 @@ import uuid
 import zipfile
 from pathlib import Path
 
-from flask import Flask, jsonify, render_template_string, request, send_file
+from flask import Flask, jsonify, redirect, render_template_string, request, send_file, session, url_for
 from werkzeug.utils import secure_filename
 
 from lara_images import translate_image_with_lara
@@ -15,6 +17,7 @@ from lara_usage import get_usage, record_image
 
 app = Flask(__name__)
 app.config["MAX_CONTENT_LENGTH"] = 1024 * 1024 * 1024
+app.secret_key = os.getenv("ADMIN_SESSION_SECRET", "").strip() or os.urandom(32)
 
 JOBS = {}
 LOCK = threading.Lock()
@@ -40,6 +43,31 @@ LANGUAGES = {
 }
 
 SOURCE_LANGUAGES = {"auto": "Détection automatique", **LANGUAGES}
+
+
+def admin_credentials():
+    username = os.getenv("ADMIN_USERNAME", "").strip()
+    password = os.getenv("ADMIN_PASSWORD", "")
+    if not username or not password:
+        raise RuntimeError("ADMIN_USERNAME et ADMIN_PASSWORD doivent être définis dans .env.")
+    return username, password
+
+
+def admin_logged_in():
+    return session.get("admin_authenticated") is True
+
+
+def require_admin_page():
+    if admin_logged_in():
+        return None
+    return redirect(url_for("admin_login"))
+
+
+def require_admin_api():
+    if admin_logged_in():
+        return None
+    return jsonify(error="Authentification administrateur requise."), 401
+
 
 def format_size(size):
     units = ["o", "Ko", "Mo", "Go", "To"]
@@ -191,13 +219,30 @@ start.onclick=async()=>{
 </html>"""
 
 
+
+LOGIN_PAGE = """<!doctype html>
+<html lang="fr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Connexion administrateur</title>
+<style>
+body{font-family:system-ui,-apple-system,Segoe UI,sans-serif;max-width:430px;margin:80px auto;padding:0 20px;background:#f5f7fb;color:#18202a}
+.card{background:white;border-radius:18px;padding:28px;box-shadow:0 8px 30px #00000012}
+label{display:block;font-weight:600;margin:16px 0 8px}input,button{width:100%;box-sizing:border-box;padding:12px;border:1px solid #d0d5dd;border-radius:10px}
+button{margin-top:20px;background:#111827;color:white;border:0;cursor:pointer;font-weight:700}.err{margin-top:15px;padding:10px;border-radius:8px;background:#fef3f2;color:#b42318}a{color:#175cd3}
+</style></head><body><div class="card">
+<h1>Administration</h1><p>Connecte-toi pour gérer les fichiers temporaires.</p>
+<form method="post"><label>Identifiant</label><input name="username" autocomplete="username" required>
+<label>Mot de passe</label><input name="password" type="password" autocomplete="current-password" required>
+<button type="submit">Se connecter</button></form>
+{% if error %}<div class="err">{{error}}</div>{% endif %}
+<p><a href="/">← Retour au traducteur</a></p></div></body></html>"""
+
 ADMIN_PAGE = """<!doctype html>
 <html lang="fr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Administration du stockage</title>
 <style>
 body{font-family:system-ui,-apple-system,Segoe UI,sans-serif;max-width:1100px;margin:40px auto;padding:0 20px;background:#f5f7fb;color:#18202a}.card{background:white;border-radius:18px;padding:28px;box-shadow:0 8px 30px #00000012}table{width:100%;border-collapse:collapse;margin-top:20px}th,td{text-align:left;padding:12px;border-bottom:1px solid #eaecf0;vertical-align:top}button{padding:8px 12px;border:0;border-radius:8px;background:#b42318;color:white;cursor:pointer}.muted{color:#667085}.files{font-size:.9rem;color:#475467}a{color:#175cd3}.empty{padding:30px;text-align:center;color:#667085}
 </style></head><body><div class="card">
-<h1>Administration du stockage</h1><p class="muted">Fichiers temporaires conservés pendant 48 heures maximum.</p>
+<h1>Administration du stockage</h1><p class="muted">Fichiers temporaires conservés pendant 48 heures maximum.</p><p><a href="/admin/logout">Se déconnecter</a></p>
 <table><thead><tr><th>Dossier</th><th>Fichiers</th><th>Taille</th><th>Expiration</th><th>Action</th></tr></thead><tbody id="rows"></tbody></table>
 <p><a href="/">← Retour au traducteur</a></p></div>
 <script>
@@ -252,18 +297,53 @@ def index():
     return render_template_string(PAGE, languages=LANGUAGES, source_languages=SOURCE_LANGUAGES)
 
 
+@app.route("/admin/login", methods=["GET", "POST"])
+def admin_login():
+    if admin_logged_in():
+        return redirect(url_for("admin"))
+    error = None
+    if request.method == "POST":
+        try:
+            expected_user, expected_password = admin_credentials()
+            username = request.form.get("username", "")
+            password = request.form.get("password", "")
+            if hmac.compare_digest(username, expected_user) and hmac.compare_digest(password, expected_password):
+                session.clear()
+                session["admin_authenticated"] = True
+                return redirect(url_for("admin"))
+            error = "Identifiant ou mot de passe incorrect."
+        except RuntimeError as exc:
+            error = str(exc)
+    return render_template_string(LOGIN_PAGE, error=error)
+
+
+@app.get("/admin/logout")
+def admin_logout():
+    session.clear()
+    return redirect(url_for("admin_login"))
+
+
 @app.get("/admin")
 def admin():
+    auth = require_admin_page()
+    if auth:
+        return auth
     return ADMIN_PAGE
 
 
 @app.get("/api/admin/storage")
 def admin_storage():
+    auth = require_admin_api()
+    if auth:
+        return auth
     return jsonify(items=list_stored_files())
 
 
 @app.delete("/api/admin/storage/<work_id>")
 def admin_delete_storage(work_id):
+    auth = require_admin_api()
+    if auth:
+        return auth
     if "/" in work_id or "\\\\" in work_id or not work_id.startswith(TEMP_PREFIX):
         return jsonify(error="Dossier invalide."), 400
     work = Path(tempfile.gettempdir()) / work_id
