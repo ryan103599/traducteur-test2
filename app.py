@@ -10,7 +10,7 @@ from pathlib import Path
 from flask import Flask, jsonify, render_template_string, request, send_file
 from werkzeug.utils import secure_filename
 
-from papago_images import translate_image_with_papago
+from lara_images import translate_image_with_lara
 
 
 app = Flask(__name__)
@@ -63,7 +63,7 @@ small{display:block;margin-top:8px;color:#667085}
 <body>
 <div class="card">
 <h1>Traducteur d'images</h1>
-<p class="muted">Traduction directe des images avec NAVER Papago Image Translation.</p>
+<p class="muted">Traduction directe des images avec Lara Translate.</p>
 <label>Langue source</label>
 <select id="source">
 <option value="auto">Détection automatique</option>
@@ -75,7 +75,7 @@ small{display:block;margin-top:8px;color:#667085}
 </select>
 <label>Images</label>
 <input id="files" type="file" webkitdirectory directory multiple accept=".jpg,.jpeg,.png,.webp">
-<small>Choisis un dossier. JPG, PNG, WebP et TIFF sont envoyés directement à NAVER Papago, qui renvoie l’image déjà traduite.</small>
+<small>Choisis un dossier. JPG, PNG, WebP et TIFF sont envoyés directement à Lara, qui renvoie l’image déjà traduite.</small>
 <button id="start">Traduire le dossier</button>
 <div id="status">En attente.</div>
 <a id="download" href="#" download>Télécharger le ZIP</a>
@@ -128,8 +128,8 @@ def worker(job_id, files, source, target):
             src.write_bytes(item["data"])
             name = secure_filename(Path(item["name"]).name) or f"image_{i}.png"
             dest = out / name
-            set_job(job_id, message=f"Image {i}/{total} : NAVER Papago…")
-            translate_image_with_papago(src, dest, target, source)
+            set_job(job_id, message=f"Image {i}/{total} : Lara Translate…")
+            translate_image_with_lara(src, dest, target, source)
             results.append(dest)
             set_job(job_id, message=f"Image {i}/{total} terminée")
         zip_path = work / "images_traduites.zip"
