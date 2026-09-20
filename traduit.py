@@ -1,13 +1,14 @@
 from paddleocr import PaddleOCR
 from deep_translator import GoogleTranslator
 from PIL import Image, ImageDraw, ImageFont
-import cv2, numpy as np, os
+import cv2, numpy as np, os, tempfile
 
 IMAGE_EXTENSIONS=(".png",".jpg",".jpeg",".webp",".bmp")
 SUPPORTED_LANGUAGES={"fr","en","es","de","it","pt","ja","ko","zh-CN","zh-TW","ru","ar"}
 
-# Désactive oneDNN/MKLDNN : certaines versions de PaddlePaddle lèvent
-# "ConvertPirAttribute2RuntimeAttribute not support ArrayAttribute<Double>".
+# Limites volontairement basses pour éviter qu'une très grande image fasse
+# exploser la RAM (Paddle peut tenter d'allouer plusieurs Go).
+OCR_MAX_SIDE=1600
 try:
     ocr=PaddleOCR(
         lang="en",
@@ -15,16 +16,18 @@ try:
         use_doc_unwarping=False,
         use_textline_orientation=False,
         enable_mkldnn=False,
+        text_det_limit_side_len=OCR_MAX_SIDE,
+        text_det_limit_type="max",
     )
 except TypeError:
-    # Compatibilité avec les versions de PaddleOCR qui utilisent le nom
-    # use_mkldnn au lieu de enable_mkldnn.
     ocr=PaddleOCR(
         lang="en",
         use_doc_orientation_classify=False,
         use_doc_unwarping=False,
         use_textline_orientation=False,
         use_mkldnn=False,
+        text_det_limit_side_len=OCR_MAX_SIDE,
+        text_det_limit_type="max",
     )
 
 FONT_PATHS=[r"C:\Windows\Fonts\arial.ttf",r"/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",r"/System/Library/Fonts/Supplemental/Arial.ttf"]
@@ -82,21 +85,48 @@ def translate_image(input_image,output_image,target="fr"):
     input_image=os.path.abspath(input_image)
     if target not in SUPPORTED_LANGUAGES:raise ValueError(f"Langue non supportée: {target}")
     if not os.path.isfile(input_image):raise FileNotFoundError(input_image)
-    result=ocr.predict(input_image)
+
+    # On fait l'OCR sur une copie réduite. Cela évite les allocations RAM
+    # énormes sur les scans/comics très haute résolution.
+    original=Image.open(input_image).convert("RGB")
+    ow,oh=original.size
+    scale=min(1.0,OCR_MAX_SIDE/max(ow,oh))
+    ocr_image=original
+    temp_path=None
+    try:
+        if scale<1.0:
+            nw=max(1,int(ow*scale));nh=max(1,int(oh*scale))
+            ocr_image=original.resize((nw,nh),Image.Resampling.LANCZOS)
+            fd,temp_path=tempfile.mkstemp(suffix=".jpg")
+            os.close(fd)
+            ocr_image.save(temp_path,"JPEG",quality=90)
+            ocr_source=temp_path
+        else:
+            ocr_source=input_image
+
+        result=ocr.predict(ocr_source)
+    finally:
+        if temp_path and os.path.exists(temp_path):os.remove(temp_path)
+
     if not result:return False
     data=result[0];texts=data.get("rec_texts",[]);boxes=data.get("rec_boxes",[])
     items=[]
+    # Les coordonnées OCR sont remises à l'échelle de l'image originale.
+    inv=1.0/scale
     for text,box in zip(texts,boxes):
         text=str(text).strip()
         if not text:continue
-        x1,y1,x2,y2=[int(v) for v in box]
+        x1,y1,x2,y2=[int(float(v)*inv) for v in box]
         items.append({"text":text,"x1":x1,"y1":y1,"x2":x2,"y2":y2,"cx":(x1+x2)/2,"cy":(y1+y2)/2,"height":max(1,y2-y1)})
-    if not items:return False
+    if not items:
+        original.save(output_image,"PNG")
+        return output_image
+
     blocks=group_text(items)
     translations=translate_texts([b["text"] for b in blocks],target)
     for b,t in zip(blocks,translations):b["translated"]=t or b["text"]
-    image=Image.open(input_image).convert("RGB")
-    image=remove_text(image,[i for b in blocks for i in b["items"]])
+
+    image=remove_text(original,[i for b in blocks for i in b["items"]])
     draw=ImageDraw.Draw(image)
     for b in blocks:
         h=int(np.median([i["height"] for i in b["items"]]))
@@ -112,6 +142,7 @@ def translate_image(input_image,output_image,target="fr"):
         tx=(left+right-(bb[2]-bb[0]))/2;ty=(top+bottom-(bb[3]-bb[1]))/2
         draw.multiline_text((tx+1,ty+1),wrapped,font=font,fill=(255,255,255),spacing=3,align="center")
         draw.multiline_text((tx,ty),wrapped,font=font,fill=(0,0,0),spacing=3,align="center")
+
     os.makedirs(os.path.dirname(os.path.abspath(output_image)),exist_ok=True)
     image.save(output_image,"PNG")
     return output_image
