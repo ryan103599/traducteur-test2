@@ -353,8 +353,6 @@ async function deleteItem(id, button){
   }
 }
 load();
-});
-load();
 setInterval(load,10000);
 </script></body></html>""";
 
