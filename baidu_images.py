@@ -1,14 +1,12 @@
 import base64
 import io
 import os
-import time
 from pathlib import Path
 
 import requests
 from PIL import Image
 
 
-BAIDU_TOKEN_URL = "https://aip.baidubce.com/oauth/2.0/token"
 BAIDU_IMAGE_URL = "https://aip.baidubce.com/file/2.0/mt/pictrans/v1"
 
 TARGET_TO_BAIDU = {
@@ -26,51 +24,15 @@ TARGET_TO_BAIDU = {
     "ar": "ara",
 }
 
-_TOKEN = None
-_TOKEN_EXPIRES_AT = 0
 
-
-def _get_access_token():
-    global _TOKEN, _TOKEN_EXPIRES_AT
-
+def _get_api_key():
     api_key = os.getenv("BAIDU_API_KEY")
-    secret_key = os.getenv("BAIDU_SECRET_KEY")
-    if not api_key or not secret_key:
+    if not api_key:
         raise RuntimeError(
-            "Baidu n'est pas configuré. Définis BAIDU_API_KEY et "
-            "BAIDU_SECRET_KEY avant de lancer l'application."
+            "Baidu n'est pas configuré. Définis BAIDU_API_KEY avant "
+            "de lancer l'application."
         )
-
-    now = time.time()
-    if _TOKEN and now < _TOKEN_EXPIRES_AT:
-        return _TOKEN
-
-    try:
-        response = requests.post(
-            BAIDU_TOKEN_URL,
-            params={
-                "grant_type": "client_credentials",
-                "client_id": api_key,
-                "client_secret": secret_key,
-            },
-            headers={"Content-Type": "application/json"},
-            timeout=20,
-        )
-        response.raise_for_status()
-        data = response.json()
-    except requests.RequestException as exc:
-        raise RuntimeError(f"Impossible d'obtenir le token Baidu : {exc}") from exc
-
-    token = data.get("access_token")
-    if not token:
-        detail = data.get("error_description") or data.get("error") or data
-        raise RuntimeError(f"Baidu n'a pas fourni de token : {detail}")
-
-    _TOKEN = token
-    # Baidu indique une durée de validité de 30 jours. On renouvelle
-    # un peu avant l'expiration pour éviter les erreurs pendant un job.
-    _TOKEN_EXPIRES_AT = now + max(60, int(data.get("expires_in", 30 * 86400)) - 300)
-    return _TOKEN
+    return api_key
 
 
 def _prepare_image(source: Path):
@@ -130,7 +92,6 @@ def _decode_paste_image(value):
     if not value:
         return None
     if isinstance(value, dict):
-        # Defensive support for APIs returning the image in a nested object.
         value = value.get("data") or value.get("image") or value.get("pasteImg")
     if not isinstance(value, str):
         return None
@@ -155,12 +116,14 @@ def translate_image_with_baidu(source: Path, destination: Path, target: str) -> 
         raise RuntimeError(f"Langue cible non supportée par Baidu : {target}")
 
     image_bytes, filename, mime = _prepare_image(source)
+    api_key = _get_api_key()
 
-    token = _get_access_token()
     try:
         response = requests.post(
             BAIDU_IMAGE_URL,
-            params={"access_token": token},
+            headers={
+                "Authorization": f"Bearer {api_key}",
+            },
             files={"image": (filename, image_bytes, mime)},
             data={
                 "from": "auto",
@@ -211,4 +174,3 @@ def translate_image_with_baidu(source: Path, destination: Path, target: str) -> 
         translated.save(destination, format="WEBP", quality=95)
     else:
         translated.save(destination)
-
