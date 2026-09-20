@@ -248,7 +248,7 @@ body{font-family:system-ui,-apple-system,Segoe UI,sans-serif;max-width:1100px;ma
 <script>
 function fmtDate(ts){return new Date(ts*1000).toLocaleString('fr-FR')}
 function fmtLeft(s){if(s<=0)return 'à supprimer';const d=Math.floor(s/86400),h=Math.floor(s%86400/3600),m=Math.floor(s%3600/60);return d+' j '+h+' h '+m+' min'}
-async function load(){const r=await fetch('/api/admin/storage');const data=await r.json();const body=document.getElementById('rows');body.innerHTML='';if(!data.items.length){body.innerHTML='<tr><td colspan="5" class="empty">Aucun fichier temporaire actuellement stocké.</td></tr>';return}for(const item of data.items){const tr=document.createElement('tr');const files=item.files.map(f=>f.name+' ('+f.size_human+')').join('<br>');tr.innerHTML='<td><strong>'+item.id+'</strong><br><span class="muted">Créé le '+fmtDate(item.created)+'</span></td><td class="files">'+files+'</td><td>'+item.size_human+'</td><td>'+fmtDate(item.expires)+'<br><span class="muted">'+fmtLeft(item.expires_in)+'</span></td><td><button onclick="removeItem(\\''+item.id+'\\')">Supprimer maintenant</button></td>';body.appendChild(tr)}}
+async function load(){const r=await fetch('/api/admin/storage');const data=await r.json();const body=document.getElementById('rows');body.innerHTML='';if(!data.items.length){body.innerHTML='<tr><td colspan="5" class="empty">Aucun fichier temporaire actuellement stocké.</td></tr>';return}for(const item of data.items){const tr=document.createElement('tr');const files=item.files.map(f=>'<div style="margin-bottom:6px">'+f.name+' ('+f.size_human+') <a href="/api/admin/storage/file?work_id='+encodeURIComponent(item.id)+'&path='+encodeURIComponent(f.name)+'">Télécharger</a></div>').join('');tr.innerHTML='<td><strong>'+item.id+'</strong><br><span class="muted">Créé le '+fmtDate(item.created)+'</span></td><td class="files">'+files+'</td><td>'+item.size_human+'</td><td>'+fmtDate(item.expires)+'<br><span class="muted">'+fmtLeft(item.expires_in)+'</span></td><td><button onclick="removeItem(\\''+item.id+'\\')">Supprimer maintenant</button></td>';body.appendChild(tr)}}
 async function removeItem(id){if(!confirm('Supprimer définitivement ce dossier et toutes ses images ?'))return;const r=await fetch('/api/admin/storage/'+encodeURIComponent(id),{method:'DELETE'});const d=await r.json();if(!r.ok)alert(d.error||'Erreur');load()}
 load();setInterval(load,60000);
 </script></body></html>"""
@@ -354,6 +354,33 @@ def admin_delete_storage(work_id):
     except OSError as exc:
         return jsonify(error=f"Suppression impossible : {exc}"), 500
     return jsonify(ok=True)
+
+
+@app.get("/api/admin/storage/file")
+def admin_download_storage_file():
+    auth = require_admin_api()
+    if auth:
+        return auth
+
+    work_id = request.args.get("work_id", "")
+    relative_name = request.args.get("path", "")
+    if not work_id or "/" in work_id or "\\" in work_id or not work_id.startswith(TEMP_PREFIX):
+        return jsonify(error="Dossier invalide."), 400
+    if not relative_name:
+        return jsonify(error="Fichier invalide."), 400
+
+    work = Path(tempfile.gettempdir()) / work_id
+    try:
+        work_resolved = work.resolve(strict=True)
+        file_path = (work / relative_name).resolve(strict=True)
+        file_path.relative_to(work_resolved)
+    except (OSError, ValueError):
+        return jsonify(error="Fichier introuvable."), 404
+
+    if not file_path.is_file():
+        return jsonify(error="Fichier introuvable."), 404
+
+    return send_file(file_path, as_attachment=True, download_name=file_path.name)
 
 
 @app.get("/api/lara-usage")
