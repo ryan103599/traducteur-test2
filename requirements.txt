@@ -1,6 +1,4 @@
 Flask>=3.0,<4
 Werkzeug>=3.0,<4
 Pillow>=10,<12
-paddlepaddle>=3.2,<4
-paddleocr>=3.3,<4
-deep-translator>=1.11,<2
+requests>=2.32,<3
