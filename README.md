@@ -1,18 +1,26 @@
 # Traducteur d'images
 
-Version reconstruite à zéro.
+Application Flask qui traduit automatiquement un dossier d'images et fournit un ZIP.
 
-L'application utilise **Google Traduction — mode Images** dans un navigateur Chromium automatisé.
+## Moteur de traduction
 
-## Installation
+L'application utilise **Baidu Image Translation API**. L'API fait l'OCR, la traduction et la réinsertion du texte dans l'image directement côté service. Baidu documente le mode `paste=1` pour renvoyer l'image entière avec le texte traduit réinséré.
+
+Baidu indique actuellement **1 000 appels gratuits par mois** pour l'API de traduction d'images. Voir la documentation officielle : https://api.fanyi.baidu.com/product/23
+
+## Configuration
+
+L'application a besoin d'une clé API Baidu et d'une clé secrète. Elles ne doivent **pas** être mises dans GitHub.
 
 Sous WSL/Linux :
 
 ```bash
+export BAIDU_API_KEY="ta_api_key"
+export BAIDU_SECRET_KEY="ta_secret_key"
 bash run.sh
 ```
 
-Le script crée l'environnement virtuel, installe les dépendances et installe Chromium.
+Le programme récupère automatiquement un `access_token` auprès de Baidu et le réutilise pendant sa durée de validité.
 
 ## Utilisation
 
@@ -24,8 +32,10 @@ Le script crée l'environnement virtuel, installe les dépendances et installe C
 
 Formats acceptés : JPG, JPEG, PNG et WebP.
 
-## Architecture
+## Limites Baidu
 
-Plus de PaddleOCR, deep-translator, MyMemory ou traitement local du texte. Chaque image passe par Google Traduction Images via Playwright, puis l'image traduite est téléchargée et placée dans le ZIP.
+Pour l'API Image Translation, Baidu indique notamment une taille maximale de 4 Mo par image, un côté maximal de 4096 px et un côté minimal de 30 px. L'application compresse/redimensionne automatiquement les images trop grandes avant l'envoi.
 
-Google peut modifier son interface Web, ce qui peut nécessiter une adaptation des sélecteurs.
+## Sécurité
+
+Les clés API sont lues uniquement depuis les variables d'environnement `BAIDU_API_KEY` et `BAIDU_SECRET_KEY`. Ne les committe jamais dans le dépôt.
