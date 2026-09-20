@@ -21,7 +21,7 @@ fi
 echo
 echo "======================================"
 echo " Traducteur d'images"
-echo " Baidu Image Translation API"
+echo " OCR.space + MyMemory"
 echo "======================================"
 echo " Configuration : fichier .env (local)"
 echo " Local  : http://127.0.0.1:8686"
