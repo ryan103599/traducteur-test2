@@ -42,7 +42,8 @@ def _ocr(source: Path):
     parsed = result.get("ParsedResults") or []
     if not parsed:
         raise RuntimeError("OCR.space n'a détecté aucun texte.")
-    words = []
+
+    lines = []
     for parsed_result in parsed:
         overlay = parsed_result.get("TextOverlay") or {}
         for line in overlay.get("Lines") or []:
@@ -63,8 +64,100 @@ def _ocr(source: Path):
                 y1 = min(w["box"][1] for w in line_words)
                 x2 = max(w["box"][2] for w in line_words)
                 y2 = max(w["box"][3] for w in line_words)
-                words.append({"text": " ".join(w["text"] for w in line_words), "box": (x1, y1, x2, y2)})
-    return words
+                lines.append({
+                    "text": " ".join(w["text"] for w in line_words),
+                    "box": (x1, y1, x2, y2),
+                    "word_heights": [w["box"][3] - w["box"][1] for w in line_words],
+                })
+
+    return _group_lines(lines)
+
+
+def _group_lines(lines):
+    """Group OCR lines that visually belong to the same speech/text block."""
+    if not lines:
+        return []
+
+    lines = sorted(lines, key=lambda item: (item["box"][1], item["box"][0]))
+    groups = []
+
+    for line in lines:
+        x1, y1, x2, y2 = line["box"]
+        h = max(1, y2 - y1)
+        placed = None
+
+        # Try to attach the line to an existing nearby block.
+        for group in reversed(groups):
+            gx1, gy1, gx2, gy2 = group["box"]
+            gh = max(1, gy2 - gy1)
+            gap = y1 - gy2
+
+            # Same text block usually has a small vertical gap.
+            max_gap = max(h, gh) * 1.35
+            if gap < -max(h, gh) * 0.25 or gap <= max_gap:
+                overlap = max(0, min(x2, gx2) - max(x1, gx1))
+                min_width = max(1, min(x2 - x1, gx2 - gx1))
+                horizontal_overlap = overlap / min_width
+
+                # Require either horizontal alignment or a clear overlap.
+                # This prevents unrelated neighbouring bubbles from merging.
+                close_x = horizontal_overlap >= 0.25 or abs(x1 - gx1) <= max(h, gh) * 2.5
+                if close_x:
+                    placed = group
+                    break
+
+        if placed is None:
+            groups.append({
+                "lines": [line],
+                "box": line["box"],
+                "word_heights": list(line["word_heights"]),
+            })
+        else:
+            placed["lines"].append(line)
+            bx1, by1, bx2, by2 = placed["box"]
+            placed["box"] = (min(bx1, x1), min(by1, y1), max(bx2, x2), max(by2, y2))
+            placed["word_heights"].extend(line["word_heights"])
+
+    # A second merge pass handles groups that became connected through an
+    # intermediate line.
+    changed = True
+    while changed:
+        changed = False
+        merged = []
+        while groups:
+            current = groups.pop(0)
+            cx1, cy1, cx2, cy2 = current["box"]
+            merged_with = False
+            for other in groups:
+                ox1, oy1, ox2, oy2 = other["box"]
+                vertical_gap = max(oy1 - cy2, cy1 - oy2, 0)
+                overlap = max(0, min(cx2, ox2) - max(cx1, ox1))
+                min_width = max(1, min(cx2 - cx1, ox2 - ox1))
+                if vertical_gap <= max(cy2 - cy1, oy2 - oy1) * 0.8 and overlap / min_width >= 0.30:
+                    current["lines"].extend(other["lines"])
+                    current["word_heights"].extend(other["word_heights"])
+                    current["box"] = (
+                        min(cx1, ox1), min(cy1, oy1),
+                        max(cx2, ox2), max(cy2, oy2),
+                    )
+                    groups.remove(other)
+                    groups.insert(0, current)
+                    changed = True
+                    merged_with = True
+                    break
+            if not merged_with:
+                merged.append(current)
+        groups = merged
+
+    result = []
+    for group in groups:
+        group["lines"].sort(key=lambda item: (item["box"][1], item["box"][0]))
+        result.append({
+            "text": "\n".join(line["text"] for line in group["lines"]),
+            "box": group["box"],
+            "word_heights": group["word_heights"],
+        })
+    return sorted(result, key=lambda item: (item["box"][1], item["box"][0]))
 
 
 def _detect_source(texts):
@@ -82,19 +175,25 @@ def _translate_one(text, source, target):
     if not text.strip() or source == target:
         return text
     if len(text.encode("utf-8")) > 500:
-        parts = re.split(r"(?<=[.!?。！？])\s+|\s+", text)
+        parts = re.split(r"(?<=[.!?。！？])\s+|\s+", text.replace("\n", " "))
         chunks, current = [], ""
         for part in parts:
             candidate = part if not current else current + " " + part
             if len(candidate.encode("utf-8")) <= 450:
                 current = candidate
             else:
-                if current: chunks.append(current)
+                if current:
+                    chunks.append(current)
                 current = part
-        if current: chunks.append(current)
+        if current:
+            chunks.append(current)
         return " ".join(_translate_one(chunk, source, target) for chunk in chunks)
     try:
-        response = requests.get("https://api.mymemory.translated.net/get", params={"q": text, "langpair": f"{source}|{target}", "mt": "1"}, timeout=30)
+        response = requests.get(
+            "https://api.mymemory.translated.net/get",
+            params={"q": text, "langpair": f"{source}|{target}", "mt": "1"},
+            timeout=30,
+        )
         response.raise_for_status()
         data = response.json()
     except requests.RequestException as exc:
@@ -111,7 +210,11 @@ def _translate_one(text, source, target):
 
 
 def _font(size):
-    for path in ("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", "/usr/share/fonts/truetype/liberation2/LiberationSans-Regular.ttf", "/usr/share/fonts/opentype/noto/NotoSans-Regular.ttf"):
+    for path in (
+        "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
+        "/usr/share/fonts/truetype/liberation2/LiberationSans-Regular.ttf",
+        "/usr/share/fonts/opentype/noto/NotoSans-Regular.ttf",
+    ):
         if Path(path).exists():
             try:
                 return ImageFont.truetype(path, size)
@@ -132,66 +235,79 @@ def _background(image, box):
     return tuple(sum(p[i] for p in pts) // len(pts) for i in range(3))
 
 
-def _estimate_original_font_size(items):
-    """Estimate the actual source character height from individual OCR words."""
-    heights = []
-    for item in items:
-        box = item.get("box")
-        if box:
-            h = box[3] - box[1]
-            if h >= 4:
-                heights.append(h)
+def _estimate_original_font_size(item):
+    heights = [h for h in item.get("word_heights", []) if h >= 4]
     if not heights:
         return 14
     heights.sort()
-    median = heights[len(heights) // 2]
-    # PIL font size is larger than the visible glyph height. This ratio is
-    # intentionally based on glyph height, not the whole line bounding box.
-    return max(10, int(median * 1.45))
+    return max(10, int(heights[len(heights) // 2] * 1.45))
 
 
 def _draw(image, box, text, source_font_size):
-    """Draw at the original vertical size; compress horizontally instead of shrinking the font."""
     draw = ImageDraw.Draw(image)
     ox1, oy1, ox2, oy2 = box
     original_height = max(10, oy2 - oy1)
     original_width = max(10, ox2 - ox1)
 
-    # The original text rectangle is the reference. A small expansion is used
-    # only for the background cleanup.
-    pad_x = max(4, min(16, original_width // 12))
-    pad_y = max(3, min(8, original_height // 4))
+    pad_x = max(5, min(18, original_width // 14))
+    pad_y = max(5, min(14, original_height // 8))
     x1, y1 = max(0, ox1 - pad_x), max(0, oy1 - pad_y)
     x2, y2 = min(image.width, ox2 + pad_x), min(image.height, oy2 + pad_y)
 
-    bg = _background(image, (x1, y1, x2, y2))
-    draw.rectangle((x1, y1, x2, y2), fill=bg)
+    draw.rectangle((x1, y1, x2, y2), fill=_background(image, (x1, y1, x2, y2)))
 
-    font = _font(max(10, int(source_font_size)))
-    text_bbox = draw.textbbox((0, 0), text, font=font)
-    text_w = max(1, text_bbox[2] - text_bbox[0])
-    text_h = max(1, text_bbox[3] - text_bbox[1])
+    font = _font(source_font_size)
+    available_w = max(20, x2 - x1 - 8)
+    available_h = max(20, y2 - y1 - 8)
 
-    # IMPORTANT: never reduce the font height because the translation is
-    # longer. If it is wider than the source box, render it at the original
-    # height and horizontally compress the rendered pixels. This preserves
-    # the apparent font size much better than reducing the font to fit.
-    target_w = max(10, x2 - x1 - 4)
-    target_h = max(10, y2 - y1 - 4)
-    scale_x = min(1.0, target_w / text_w)
-    rendered_w = max(1, int(text_w * scale_x))
-    rendered_h = text_h
+    # Preserve explicit line breaks created by the OCR grouping.
+    paragraphs = text.splitlines() or [text]
+    selected = None
 
-    layer = Image.new("RGBA", (text_w + 8, text_h + 8), (0, 0, 0, 0))
-    layer_draw = ImageDraw.Draw(layer)
-    layer_draw.text((4 - text_bbox[0], 4 - text_bbox[1]), text, fill=(0, 0, 0, 255), font=font)
+    # Keep the original font height whenever possible. If the translated block
+    # needs more vertical room, reduce only as a last resort.
+    for size in range(max(10, source_font_size), 7, -1):
+        font = _font(size)
+        all_lines = []
+        for paragraph in paragraphs:
+            paragraph = paragraph.strip()
+            if not paragraph:
+                continue
+            current = ""
+            for word in paragraph.split():
+                candidate = word if not current else current + " " + word
+                if draw.textbbox((0, 0), candidate, font=font)[2] <= available_w:
+                    current = candidate
+                else:
+                    if current:
+                        all_lines.append(current)
+                    current = word
+            if current:
+                all_lines.append(current)
 
-    if scale_x < 1.0:
-        layer = layer.resize((rendered_w + 8, rendered_h + 8), Image.Resampling.LANCZOS)
-        rendered_w += 0
-    paste_x = x1 + max(0, (target_w - rendered_w) // 2)
-    paste_y = y1 + max(0, (target_h - rendered_h) // 2)
-    image.paste(layer, (paste_x, paste_y), layer)
+        line_h = max(10, int(size * 1.12))
+        if all_lines and len(all_lines) * line_h <= available_h:
+            selected = (font, all_lines, line_h)
+            break
+
+    if selected is None:
+        font = _font(8)
+        selected = (font, [text.replace("\n", " ")], 10)
+
+    font, lines, line_h = selected
+    total_h = len(lines) * line_h
+    y = y1 + max(0, (available_h - total_h) // 2)
+
+    for line in lines:
+        bbox = draw.textbbox((0, 0), line, font=font)
+        tw = bbox[2] - bbox[0]
+        draw.text(
+            (x1 + max(0, (available_w - tw) // 2), y),
+            line,
+            fill=(0, 0, 0),
+            font=font,
+        )
+        y += line_h
 
 
 def translate_image_with_ocrspace(source: Path, destination: Path, target: str, source_lang: str = "auto") -> None:
@@ -201,12 +317,11 @@ def translate_image_with_ocrspace(source: Path, destination: Path, target: str, 
     if not items:
         image.save(destination)
         return
+
     detected = source_lang if source_lang != "auto" else _detect_source([x["text"] for x in items])
     if detected == target:
         image.save(destination)
         return
-
-    source_font_size = _estimate_original_font_size(items)
 
     cache, translated = {}, []
     for item in items:
@@ -215,8 +330,9 @@ def translate_image_with_ocrspace(source: Path, destination: Path, target: str, 
             cache[text] = _translate_one(text, detected, target)
         value = cache[text]
         if value and value.strip() != text.strip():
-            translated.append((item["box"], value))
+            translated.append((item, value))
 
-    for box, value in translated:
-        _draw(image, box, value, source_font_size)
+    for item, value in translated:
+        _draw(image, item["box"], value, _estimate_original_font_size(item))
+
     image.save(destination)
