@@ -24,7 +24,8 @@ echo " Traducteur d'images"
 echo " Lara Translate Image Translation"
 echo "======================================"
 echo " Configuration : fichier .env (local)"
-echo " Local  : http://127.0.0.1:8686"
-echo " Réseau : http://$(hostname -I | awk '{print $1}'):8686"
+PORT="${PORT:-8686}"
+echo " Local  : http://127.0.0.1:${PORT}"
+echo " Réseau : http://$(hostname -I | awk '{print $1}'):${PORT}"
 echo
 exec .venv/bin/python app.py
