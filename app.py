@@ -57,6 +57,83 @@ def admin_credentials():
 def admin_logged_in():
     return session.get("admin_authenticated") is True
 
+ENV_PATH = Path(__file__).resolve().parent / ".env"
+ENV_SECRET_KEYS = {"LARA_ACCESS_KEY_ID", "LARA_ACCESS_KEY_SECRET", "ADMIN_PASSWORD", "ADMIN_SESSION_SECRET"}
+ENV_EDITABLE_KEYS = [
+    "LARA_ACCESS_KEY_ID",
+    "LARA_ACCESS_KEY_SECRET",
+    "ADMIN_USERNAME",
+    "ADMIN_PASSWORD",
+    "ADMIN_SESSION_SECRET",
+    "PORT",
+]
+
+
+def read_env_values():
+    values = {}
+    if not ENV_PATH.is_file():
+        return values
+    try:
+        for line in ENV_PATH.read_text(encoding="utf-8").splitlines():
+            stripped = line.strip()
+            if not stripped or stripped.startswith("#") or "=" not in stripped:
+                continue
+            key, value = stripped.split("=", 1)
+            key = key.strip()
+            value = value.strip()
+            if len(value) >= 2 and value[0] == value[-1] and value[0] in {"'", '"'}:
+                value = value[1:-1]
+            values[key] = value
+    except OSError:
+        pass
+    return values
+
+
+def env_for_admin():
+    values = read_env_values()
+    result = {}
+    for key in ENV_EDITABLE_KEYS:
+        value = values.get(key, "")
+        result[key] = "••••••••" if key in ENV_SECRET_KEYS and value else value
+    return result
+
+
+def update_env_values(updates):
+    current_lines = ENV_PATH.read_text(encoding="utf-8").splitlines() if ENV_PATH.is_file() else []
+    normalized = {}
+    for key, value in updates.items():
+        if key in ENV_EDITABLE_KEYS and value is not None:
+            normalized[key] = str(value).strip()
+
+    found = set()
+    output = []
+    for line in current_lines:
+        stripped = line.strip()
+        if stripped and not stripped.startswith("#") and "=" in stripped:
+            key = stripped.split("=", 1)[0].strip()
+            if key in normalized:
+                value = normalized[key]
+                if value != "":
+                    safe_value = value.replace("\\", "\\\\").replace('"', '\\\"')
+                    line = f'{key}="{safe_value}"'
+                    found.add(key)
+                elif key in ENV_SECRET_KEYS:
+                    found.add(key)
+                    continue
+                else:
+                    line = f'{key}=""'
+                    found.add(key)
+        output.append(line)
+
+    for key in ENV_EDITABLE_KEYS:
+        if key in normalized and key not in found and normalized[key] != "":
+            safe_value = normalized[key].replace("\\", "\\\\").replace('"', '\\\"')
+            if output and output[-1].strip():
+                output.append("")
+            output.append(f'{key}="{safe_value}"')
+
+    ENV_PATH.write_text("\n".join(output).rstrip() + "\n", encoding="utf-8")
+
 
 def require_admin_page():
     if admin_logged_in():
@@ -268,14 +345,43 @@ body{font-family:system-ui,-apple-system,Segoe UI,sans-serif;max-width:1200px;ma
 .danger{padding:9px 14px;border:0;border-radius:8px;background:#b42318;color:white;cursor:pointer}
 .empty{padding:30px;text-align:center;color:#667085}
 .error{padding:14px;background:#fef3f2;color:#b42318;border-radius:10px;margin-top:15px}.job-info{margin-top:10px;padding:10px 12px;background:#f8f9fc;border-radius:9px;font-size:.9rem;color:#475467}
+.settings-card{margin-top:24px;padding:22px;border:1px solid #e4e7ec;border-radius:16px;background:linear-gradient(145deg,#ffffff,#f8f9ff);box-shadow:0 8px 24px #1018280a}.settings-head{display:flex;justify-content:space-between;align-items:flex-start;gap:16px}.settings-head>div:first-child{display:flex;gap:12px;align-items:flex-start}.settings-head h2{margin:0 0 4px}.settings-head p{margin:0}.settings-icon{display:grid;place-items:center;width:42px;height:42px;border-radius:12px;background:#eef4ff;font-size:20px}.settings-badge{padding:6px 9px;border-radius:999px;background:#ecfdf3;color:#067647;font-size:.75rem;font-weight:800}.env-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:20px}.env-grid label{font-size:.85rem;font-weight:700;color:#344054}.env-grid input{width:100%;box-sizing:border-box;margin-top:7px;padding:12px 13px;border:1px solid #d0d5dd;border-radius:10px;background:white;font:inherit;outline:none}.env-grid input:focus{border-color:#635bff;box-shadow:0 0 0 4px #635bff18}.env-actions{grid-column:1/-1;display:flex;align-items:center;gap:14px;flex-wrap:wrap}.save-btn{border:0;border-radius:10px;padding:12px 17px;background:linear-gradient(135deg,#635bff,#7c3aed);color:white;font-weight:800;cursor:pointer}.env-actions span{font-size:.8rem;color:#667085}.settings-message{display:none;margin-top:14px;padding:11px 13px;border-radius:10px}.settings-message.ok{display:block;background:#ecfdf3;color:#067647}.settings-message.err{display:block;background:#fef3f2;color:#b42318}
 </style></head><body><div class="card">
 <h1>Administration du stockage</h1>
 <p class="muted">Fichiers temporaires conservés pendant 48 heures maximum.</p>
 <p><a href="/admin/logout">Se déconnecter</a> · <a href="/">← Retour au traducteur</a></p>
+<div id="envCard" class="settings-card">
+  <div class="settings-head"><div><span class="settings-icon">⚙</span><div><h2>Configuration</h2><p class="muted">Modifie les paramètres du fichier <code>.env</code> sans ouvrir le terminal.</p></div></div><span class="settings-badge">ADMIN</span></div>
+  <div id="envMessage" class="settings-message"></div>
+  <form id="envForm" class="env-grid">
+    <label>Clé Lara — Access Key ID<input name="LARA_ACCESS_KEY_ID" type="password" autocomplete="off" placeholder="Laisser vide pour conserver"></label>
+    <label>Clé Lara — Access Key Secret<input name="LARA_ACCESS_KEY_SECRET" type="password" autocomplete="off" placeholder="Laisser vide pour conserver"></label>
+    <label>Identifiant administrateur<input name="ADMIN_USERNAME" autocomplete="username"></label>
+    <label>Mot de passe administrateur<input name="ADMIN_PASSWORD" type="password" autocomplete="new-password" placeholder="Laisser vide pour conserver"></label>
+    <label>Secret de session<input name="ADMIN_SESSION_SECRET" type="password" autocomplete="new-password" placeholder="Laisser vide pour conserver"></label>
+    <label>Port du serveur<input name="PORT" type="number" min="1" max="65535" placeholder="8686"></label>
+    <div class="env-actions"><button type="submit" class="save-btn">💾 Enregistrer le .env</button><span>Les changements de port et d'identifiants prennent effet après redémarrage.</span></div>
+  </form>
+</div>
 <div id="error"></div><div id="imageModal" class="modal" onclick="closeImage(event)"><button class="modal-close" type="button" onclick="closeImage(event)">×</button><img id="modalImage" src="" alt="Aperçu agrandi"></div><div class="filters"><button type="button" class="filter active" data-filter="all">Toutes</button><button type="button" class="filter" data-filter="translated">Images traduites</button><button type="button" class="filter" data-filter="uploaded">Images envoyées</button></div><div id="jobs"></div>
 </div>
 <script>
 let currentFilter="all"; function fmtDate(ts){return new Date(ts*1000).toLocaleString("fr-FR")}
+async function loadEnv(){
+  try{
+    const r=await fetch('/api/admin/env',{credentials:'same-origin'}); const d=await r.json();
+    if(!r.ok) throw new Error(d.error||'Impossible de charger la configuration.');
+    Object.entries(d.values).forEach(([k,v])=>{const el=document.querySelector('[name="'+k+'"]');if(el) el.value=(v==="••••••••"?"":v)});
+  }catch(e){showEnvMessage(e.message,true)}
+}
+function showEnvMessage(msg,error=false){const el=document.getElementById("envMessage");el.textContent=msg;el.className="settings-message "+(error?"err":"ok")}
+document.getElementById("envForm").addEventListener("submit",async function(e){
+  e.preventDefault();
+  const data={}; new FormData(this).forEach((v,k)=>data[k]=v);
+  try{const r=await fetch('/api/admin/env',{method:'POST',headers:{'Content-Type':'application/json'},credentials:'same-origin',body:JSON.stringify(data)});const d=await r.json();if(!r.ok)throw new Error(d.error||'Enregistrement impossible.');showEnvMessage(d.message)}
+  catch(e){showEnvMessage(e.message,true)}
+});
+loadEnv();
 function fileUrl(item,f){return '/api/admin/storage/file?work_id='+encodeURIComponent(item.id)+'&path='+encodeURIComponent(f.name)}
 function esc(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;')}
 function card(item,f){
@@ -456,6 +562,31 @@ def admin():
     if auth:
         return auth
     return ADMIN_PAGE
+
+
+@app.route("/api/admin/env", methods=["GET", "POST"])
+def admin_env():
+    auth = require_admin_api()
+    if auth:
+        return auth
+    if request.method == "GET":
+        if not ENV_PATH.exists():
+            return jsonify(error="Le fichier .env est introuvable."), 404
+        return jsonify(values=env_for_admin())
+    try:
+        data = request.get_json(silent=True) or {}
+        updates = {key: data.get(key) for key in ENV_EDITABLE_KEYS if key in data}
+        if "PORT" in updates and updates["PORT"]:
+            try:
+                port = int(str(updates["PORT"]))
+                if not 1 <= port <= 65535:
+                    raise ValueError
+            except ValueError:
+                return jsonify(error="Le port doit être un nombre entre 1 et 65535."), 400
+        update_env_values(updates)
+        return jsonify(ok=True, message="Configuration .env enregistrée. Redémarre l'application pour appliquer les changements.")
+    except OSError as exc:
+        return jsonify(error=f"Impossible d'enregistrer le fichier .env : {exc}"), 500
 
 
 @app.get("/api/admin/storage")
