@@ -311,19 +311,42 @@ def worker(job_id, files, source, target):
             name = secure_filename(Path(item["name"]).name) or f"image_{i}.png"
             dest = out / name
             set_job(job_id, message=f"Image {i}/{total} : Lara Translate…")
-            used_lara = translate_image_with_lara(src, dest, target, source)
+            try:
+                used_lara = translate_image_with_lara(src, dest, target, source)
+            except Exception as exc:
+                error_text = str(exc)
+                no_text = (
+                    "No text found in the image" in error_text
+                    or "UnprocessableEntityError" in error_text
+                    or "(HTTP 422)" in error_text
+                )
+                if not no_text:
+                    raise
+                shutil.copy2(src, dest)
+                used_lara = False
+                set_job(job_id, message=f"Image {i}/{total} : aucun texte détecté, image conservée")
             if used_lara:
                 record_image()
                 billed_images += 1
             results.append(dest)
-            set_job(job_id, message=f"Image {i}/{total} terminée")
+            if used_lara:
+                set_job(job_id, message=f"Image {i}/{total} terminée")
+            elif no_text:
+                set_job(job_id, message=f"Image {i}/{total} terminée (aucun texte détecté)")
         zip_path = work / "images_traduites.zip"
         set_job(job_id, message="Création du ZIP…")
         with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_DEFLATED) as z:
             for path in results:
                 z.write(path, path.name)
         suffix = f" ({billed_images} appel(s) Lara)" if billed_images != total else ""
-        set_job(job_id, state="done", message=f"{total} image(s) traduite(s).{suffix}", zip=str(zip_path))
+        skipped = total - billed_images
+        if skipped:
+            message = f"{total} image(s) traitée(s), dont {skipped} sans texte détecté."
+            if billed_images:
+                message += f" {billed_images} appel(s) Lara."
+        else:
+            message = f"{total} image(s) traduite(s)."
+        set_job(job_id, state="done", message=message, zip=str(zip_path))
     except Exception as exc:
         set_job(job_id, state="error", message=f"❌ {type(exc).__name__}: {exc}")
     finally:
