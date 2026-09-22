@@ -867,7 +867,9 @@ def translate():
         "image_count": len(items),
         "files": [str(item["name"]) for item in items],
     }
-    set_job(job, state="running", message="Démarrage…", **metadata)
+    # job_id est déjà le premier argument de set_job : ne pas le transmettre
+    # une seconde fois via **metadata.
+    set_job(job, state="running", message="Démarrage…", **{k: v for k, v in metadata.items() if k != "job_id"})
     threading.Thread(target=worker, args=(job, items, source, target, client_ip), daemon=True).start()
     return jsonify(job=job)
 
