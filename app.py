@@ -308,6 +308,16 @@ def cleanup_old_files():
                 pass
 
 
+def cleanup_loop():
+    """Exécute périodiquement le nettoyage des anciens traitements."""
+    while True:
+        try:
+            cleanup_old_files()
+        except Exception:
+            app.logger.exception("Erreur lors du nettoyage automatique du stockage")
+        time.sleep(CLEANUP_INTERVAL_SECONDS)
+
+
 PAGE = """<!doctype html>
 <html lang="fr">
 <head>
