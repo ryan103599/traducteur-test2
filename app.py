@@ -2,6 +2,7 @@ import hmac
 import json
 import os
 import shutil
+import subprocess
 import tempfile
 import threading
 import time
@@ -338,7 +339,7 @@ ADMIN_PAGE = """<!doctype html>
 .layout{display:flex;min-height:100vh}.sidebar{width:250px;background:#111827;color:#fff;padding:24px 16px;position:fixed;inset:0 auto 0 0}.brand{font-size:20px;font-weight:800;padding:8px 10px 26px}.brand span{display:inline-grid;place-items:center;width:38px;height:38px;border-radius:11px;background:linear-gradient(135deg,#635bff,#8b5cf6);margin-right:9px;vertical-align:middle}
 .nav{display:grid;gap:6px}.nav a{color:#d1d5db;text-decoration:none;padding:12px 13px;border-radius:10px;font-weight:650}.nav a:hover,.nav a.active{background:#ffffff14;color:#fff}.nav .back{margin-top:20px;border-top:1px solid #ffffff18;padding-top:20px}
 .main{margin-left:250px;width:calc(100% - 250px);padding:32px;max-width:1500px}.top{display:flex;justify-content:space-between;gap:20px;align-items:flex-start;margin-bottom:24px}.top h1{margin:0 0 6px;font-size:30px}.muted{color:var(--muted)}.card{background:white;border:1px solid var(--line);border-radius:18px;padding:22px;box-shadow:0 8px 30px #1018280a;margin-bottom:20px}
-.filters{display:grid;grid-template-columns:1.2fr 1fr 1fr 1fr 1fr auto;gap:10px;align-items:end}.filters label{font-size:12px;font-weight:750;color:#475467}.filters input,.filters select{width:100%;margin-top:6px;padding:11px 12px;border:1px solid #d0d5dd;border-radius:9px;font:inherit}.btn{border:0;border-radius:9px;padding:11px 14px;font-weight:750;cursor:pointer}.primary{background:var(--primary);color:#fff}.danger{background:var(--danger);color:#fff}.stats{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}.stat{padding:16px;border:1px solid var(--line);border-radius:12px;background:#fafbff}.stat b{display:block;font-size:23px;margin-top:5px}.job{border:1px solid var(--line);border-radius:16px;padding:18px;margin-top:14px}.job-head{display:flex;justify-content:space-between;gap:15px}.job-title{font-weight:800}.job-meta{font-size:13px;color:#667085;margin-top:5px}.section{margin-top:15px}.section h3{font-size:15px;margin:0 0 10px}.file-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:12px}.file-card{border:1px solid var(--line);border-radius:11px;padding:9px;background:#fafafa}.file-card img{width:100%;height:145px;object-fit:contain;background:#fff;border-radius:8px;cursor:zoom-in}.file-name{font-size:13px;word-break:break-word;margin-top:7px}.file-meta{font-size:12px;color:#667085;margin-top:3px}.file-actions{margin-top:6px}.file-actions a{color:#4f46e5;text-decoration:none;font-size:13px}.zip{margin-top:15px;padding:12px;border:1px dashed #d0d5dd;border-radius:10px}.empty{padding:45px;text-align:center;color:#667085}.modal{position:fixed;inset:0;background:#000b;display:none;align-items:center;justify-content:center;padding:20px;z-index:1000}.modal.open{display:flex}.modal img{max-width:95vw;max-height:90vh;background:white;border-radius:10px}.modal-close{position:absolute;top:16px;right:20px;border:0;border-radius:50%;width:42px;height:42px;font-size:24px;cursor:pointer}.settings-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px}.settings-grid label{font-size:13px;font-weight:700}.settings-grid input{width:100%;margin-top:7px;padding:11px;border:1px solid #d0d5dd;border-radius:9px}.actions{grid-column:1/-1;display:flex;gap:12px;align-items:center}.msg{display:none;padding:11px;border-radius:9px;margin:14px 0}.msg.ok{display:block;background:#ecfdf3;color:#067647}.msg.err{display:block;background:#fef3f2;color:#b42318}
+.filters{display:grid;grid-template-columns:1.2fr 1fr 1fr 1fr 1fr auto;gap:10px;align-items:end}.filters label{font-size:12px;font-weight:750;color:#475467}.filters input,.filters select{width:100%;margin-top:6px;padding:11px 12px;border:1px solid #d0d5dd;border-radius:9px;font:inherit}.btn{border:0;border-radius:9px;padding:11px 14px;font-weight:750;cursor:pointer}.primary{background:var(--primary);color:#fff}.danger{background:var(--danger);color:#fff}.stats{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}.stat{padding:16px;border:1px solid var(--line);border-radius:12px;background:#fafbff}.stat b{display:block;font-size:23px;margin-top:5px}.job{border:1px solid var(--line);border-radius:16px;padding:18px;margin-top:14px}.job-head{display:flex;justify-content:space-between;gap:15px}.job-title{font-weight:800}.job-meta{font-size:13px;color:#667085;margin-top:5px}.section{margin-top:15px}.section h3{font-size:15px;margin:0 0 10px}.file-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:12px}.file-card{border:1px solid var(--line);border-radius:11px;padding:9px;background:#fafafa}.file-card img{width:100%;height:145px;object-fit:contain;background:#fff;border-radius:8px;cursor:zoom-in}.file-name{font-size:13px;word-break:break-word;margin-top:7px}.file-meta{font-size:12px;color:#667085;margin-top:3px}.file-actions{margin-top:6px}.file-actions a{color:#4f46e5;text-decoration:none;font-size:13px}.zip{margin-top:15px;padding:12px;border:1px dashed #d0d5dd;border-radius:10px}.empty{padding:45px;text-align:center;color:#667085}.modal{position:fixed;inset:0;background:#000b;display:none;align-items:center;justify-content:center;padding:20px;z-index:1000}.modal.open{display:flex}.modal img{max-width:95vw;max-height:90vh;background:white;border-radius:10px}.modal-close{position:absolute;top:16px;right:20px;border:0;border-radius:50%;width:42px;height:42px;font-size:24px;cursor:pointer}.settings-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px}.settings-grid label{font-size:13px;font-weight:700}.settings-grid input{width:100%;margin-top:7px;padding:11px;border:1px solid #d0d5dd;border-radius:9px}.actions{grid-column:1/-1;display:flex;gap:16px;align-items:center;flex-wrap:wrap}.restart-option{font-size:13px;font-weight:650;color:#475467;display:flex;align-items:center;gap:8px}.restart-option input{width:auto;margin:0}.msg{display:none;padding:11px;border-radius:9px;margin:14px 0}.msg.ok{display:block;background:#ecfdf3;color:#067647}.msg.err{display:block;background:#fef3f2;color:#b42318}
 @media(max-width:900px){.sidebar{width:210px}.main{margin-left:210px;width:calc(100% - 210px);padding:20px}.filters{grid-template-columns:1fr 1fr}.stats{grid-template-columns:1fr 1fr}}
 @media(max-width:650px){.layout{display:block}.sidebar{position:static;width:auto;padding:12px}.brand{padding:5px 8px 12px}.nav{display:flex;overflow:auto}.nav .back{margin:0;border:0;padding:12px}.main{margin:0;width:auto}.top{display:block}.filters,.settings-grid{grid-template-columns:1fr}.stats{grid-template-columns:1fr 1fr}.actions{grid-column:auto}}
 </style></head><body>
@@ -370,8 +371,8 @@ const fromEl=document.getElementById("from"),toEl=document.getElementById("to"),
 CONFIG_ADMIN_PAGE = """<!doctype html><html lang="fr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Administration · Configuration</title><style>
 body{margin:0;font-family:Inter,system-ui,sans-serif;background:#f4f7fb;color:#172033}.layout{display:flex;min-height:100vh}.sidebar{width:250px;background:#111827;color:#fff;padding:24px 16px;position:fixed;inset:0 auto 0 0}.brand{font-size:20px;font-weight:800;padding:8px 10px 26px}.brand span{display:inline-grid;place-items:center;width:38px;height:38px;border-radius:11px;background:linear-gradient(135deg,#635bff,#8b5cf6);margin-right:9px;vertical-align:middle}.nav{display:grid;gap:6px}.nav a{color:#d1d5db;text-decoration:none;padding:12px;border-radius:10px;font-weight:650}.nav a:hover,.nav a.active{background:#ffffff14;color:#fff}.main{margin-left:250px;padding:32px;width:calc(100% - 250px);max-width:1100px}.card{background:#fff;border:1px solid #e4e7ec;border-radius:16px;padding:24px}.grid{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:20px}.grid label{font-size:13px;font-weight:700}.grid input{width:100%;margin-top:7px;padding:12px;border:1px solid #d0d5dd;border-radius:9px;box-sizing:border-box}.actions{grid-column:1/-1;display:flex;gap:12px;align-items:center}.save{border:0;border-radius:9px;padding:12px 16px;background:#635bff;color:#fff;font-weight:800;cursor:pointer}.msg{display:none;padding:11px;border-radius:9px;margin-top:15px}.msg.ok{display:block;background:#ecfdf3;color:#067647}.msg.err{display:block;background:#fef3f2;color:#b42318}@media(max-width:650px){.layout{display:block}.sidebar{position:static;width:auto;padding:12px}.nav{display:flex;overflow:auto}.main{margin:0;width:auto;padding:20px}.grid{grid-template-columns:1fr}.actions{grid-column:auto}}
 </style></head><body><div class="layout"><aside class="sidebar"><div class="brand"><span>文</span> Administration</div><nav class="nav"><a href="/admin">📊 Tableau de bord</a><a href="/admin/images">🖼️ Images</a><a href="/admin/config" class="active">⚙️ Configuration</a><a href="/">← Retour au traducteur</a><a href="/admin/logout">↪ Déconnexion</a></nav></aside><main class="main"><h1>Configuration</h1><p>Modification sécurisée du fichier <code>.env</code>.</p><div class="card"><div id="msg" class="msg"></div><form id="form" class="grid">
-<label>Clé Lara — Access Key ID<input name="LARA_ACCESS_KEY_ID" type="password" placeholder="Laisser vide pour conserver"></label><label>Clé Lara — Access Key Secret<input name="LARA_ACCESS_KEY_SECRET" type="password" placeholder="Laisser vide pour conserver"></label><label>Identifiant administrateur<input name="ADMIN_USERNAME"></label><label>Mot de passe administrateur<input name="ADMIN_PASSWORD" type="password" placeholder="Laisser vide pour conserver"></label><label>Secret de session<input name="ADMIN_SESSION_SECRET" type="password" placeholder="Laisser vide pour conserver"></label><label>Port du serveur<input name="PORT" type="number" min="1" max="65535"></label><div class="actions"><button class="save">💾 Enregistrer</button><span>Redémarre l'application après modification.</span></div></form></div></main></div><script>
-const form=document.getElementById("form"),msg=document.getElementById("msg");function show(t,e=false){msg.textContent=t;msg.className="msg "+(e?"err":"ok")}async function load(){const r=await fetch("/api/admin/env");const d=await r.json();if(!r.ok)return show(d.error,true);Object.entries(d.values).forEach(([k,v])=>{const e=form.elements[k];if(e)e.value=v==="••••••••"?"":v})}form.onsubmit=async e=>{e.preventDefault();const data=Object.fromEntries(new FormData(form));const r=await fetch("/api/admin/env",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(data)});const d=await r.json();show(d.message||d.error,!r.ok)};load();
+<label>Clé Lara — Access Key ID<input name="LARA_ACCESS_KEY_ID" type="password" placeholder="Laisser vide pour conserver"></label><label>Clé Lara — Access Key Secret<input name="LARA_ACCESS_KEY_SECRET" type="password" placeholder="Laisser vide pour conserver"></label><label>Identifiant administrateur<input name="ADMIN_USERNAME"></label><label>Mot de passe administrateur<input name="ADMIN_PASSWORD" type="password" placeholder="Laisser vide pour conserver"></label><label>Secret de session<input name="ADMIN_SESSION_SECRET" type="password" placeholder="Laisser vide pour conserver"></label><label>Port du serveur<input name="PORT" type="number" min="1" max="65535"></label><div class="actions"><button class="save">💾 Enregistrer</button><label class="restart-option"><input id="restart" type="checkbox"> Redémarrer automatiquement le service après l'enregistrement</label></div></form></div></main></div><script>
+const form=document.getElementById("form"),msg=document.getElementById("msg"),restart=document.getElementById("restart");function show(t,e=false){msg.textContent=t;msg.className="msg "+(e?"err":"ok")}async function load(){const r=await fetch("/api/admin/env");const d=await r.json();if(!r.ok)return show(d.error,true);Object.entries(d.values).forEach(([k,v])=>{const e=form.elements[k];if(e)e.value=v==="••••••••"?"":v})}form.onsubmit=async e=>{e.preventDefault();const data=Object.fromEntries(new FormData(form));const r=await fetch("/api/admin/env",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(data)});const d=await r.json();if(!r.ok){show(d.error||"Erreur d'enregistrement",true);return}if(restart.checked){show("Configuration enregistrée. Redémarrage du service…");await fetch("/api/admin/restart",{method:"POST"});setTimeout(()=>location.href="/",2200)}else{show(d.message||"Configuration enregistrée.")}};load();
 </script></main></div></body></html>"""
 
 def set_job(job_id, **values):
@@ -514,7 +515,7 @@ def admin_login():
 @app.get("/admin/logout")
 def admin_logout():
     session.clear()
-    return redirect(url_for("admin_login"))
+    return redirect(url_for("index"))
 
 
 @app.get("/admin")
@@ -564,6 +565,40 @@ def admin_env():
         return jsonify(ok=True, message="Configuration .env enregistrée. Redémarre l'application pour appliquer les changements.")
     except OSError as exc:
         return jsonify(error=f"Impossible d'enregistrer le fichier .env : {exc}"), 500
+
+
+@app.post("/api/admin/restart")
+def admin_restart():
+    auth = require_admin_api()
+    if auth:
+        return auth
+
+    def restart_process():
+        time.sleep(1.2)
+        run_script = Path(__file__).resolve().parent / "run.sh"
+        try:
+            if run_script.is_file():
+                subprocess.Popen(
+                    ["bash", str(run_script)],
+                    cwd=str(run_script.parent),
+                    start_new_session=True,
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.DEVNULL,
+                )
+            else:
+                subprocess.Popen(
+                    ["bash", "-lc", f"set -a; source {ENV_PATH!s}; set +a; exec {Path(__file__).resolve()}"],
+                    cwd=str(Path(__file__).resolve().parent),
+                    start_new_session=True,
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.DEVNULL,
+                )
+            os._exit(0)
+        except Exception:
+            pass
+
+    threading.Thread(target=restart_process, daemon=True).start()
+    return jsonify(ok=True, message="Redémarrage lancé. La page va revenir au traducteur.")
 
 
 @app.get("/api/admin/storage")
