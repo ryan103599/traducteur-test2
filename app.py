@@ -1,4 +1,5 @@
 import hmac
+import json
 import os
 import shutil
 import tempfile
@@ -331,12 +332,15 @@ def worker(job_id, files, source, target):
             pass
         results = []
         billed_images = 0
+        quota_exceeded = False
+        quota_message = ""
         for i, item in enumerate(files, 1):
             src = work / f"input_{i}{Path(item['name']).suffix.lower()}"
             src.write_bytes(item["data"])
             name = secure_filename(Path(item["name"]).name) or f"image_{i}.png"
             dest = out / name
             set_job(job_id, message=f"Image {i}/{total} : Lara Translate…")
+            no_text = False
             try:
                 used_lara = translate_image_with_lara(src, dest, target, source)
             except Exception as exc:
@@ -346,6 +350,16 @@ def worker(job_id, files, source, target):
                     or "UnprocessableEntityError" in error_text
                     or "(HTTP 422)" in error_text
                 )
+                quota_exceeded = (
+                    "(HTTP 429)" in error_text
+                    or "HTTP 429" in error_text
+                    or "exceeded your \"api_translation_chars\" quota" in error_text
+                    or "quota" in error_text.lower() and "429" in error_text
+                )
+                if quota_exceeded:
+                    quota_message = "Quota Lara dépassé : les images déjà traitées seront disponibles dans le ZIP."
+                    set_job(job_id, message=f"Image {i}/{total} : quota Lara dépassé, arrêt du traitement…")
+                    break
                 if not no_text:
                     raise
                 shutil.copy2(src, dest)
@@ -359,20 +373,30 @@ def worker(job_id, files, source, target):
                 set_job(job_id, message=f"Image {i}/{total} terminée")
             elif no_text:
                 set_job(job_id, message=f"Image {i}/{total} terminée (aucun texte détecté)")
+
         zip_path = work / "images_traduites.zip"
         set_job(job_id, message="Création du ZIP…")
         with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_DEFLATED) as z:
             for path in results:
                 z.write(path, path.name)
-        suffix = f" ({billed_images} appel(s) Lara)" if billed_images != total else ""
+
         skipped = total - billed_images
-        if skipped:
+        if quota_exceeded:
+            processed = len(results)
+            message = f"Quota Lara dépassé après {processed} image(s) traitée(s)."
+            if processed:
+                message += " Le ZIP des images déjà traitées est disponible."
+            else:
+                message += " Aucune image n'a pu être traduite."
+            set_job(job_id, state="done", message=message, zip=str(zip_path), quota_exceeded=True)
+        elif skipped:
             message = f"{total} image(s) traitée(s), dont {skipped} sans texte détecté."
             if billed_images:
                 message += f" {billed_images} appel(s) Lara."
+            set_job(job_id, state="done", message=message, zip=str(zip_path))
         else:
             message = f"{total} image(s) traduite(s)."
-        set_job(job_id, state="done", message=message, zip=str(zip_path))
+            set_job(job_id, state="done", message=message, zip=str(zip_path))
     except Exception as exc:
         set_job(job_id, state="error", message=f"❌ {type(exc).__name__}: {exc}")
     finally:
