@@ -4,28 +4,32 @@ Application Flask qui traduit automatiquement un dossier d'images et fournit un 
 
 ## Moteur de traduction
 
-L'application utilise **Baidu Image Translation API**. L'API fait l'OCR, la traduction et la réinsertion du texte dans l'image directement côté service. Baidu documente le mode `paste=1` pour renvoyer l'image entière avec le texte traduit réinséré.
+L'application utilise **Lara Translate** pour traduire les images et réinsérer le texte traduit directement dans les images.
 
-Baidu indique actuellement **1 000 appels gratuits par mois** pour l'API de traduction d'images. Voir la documentation officielle : https://api.fanyi.baidu.com/product/23
+## Configuration de la clé Lara
 
-## Configuration
+La clé Lara doit être configurée dans le fichier **.env** sur la machine où l'application tourne.
 
-L'application utilise la nouvelle authentification Baidu **API Key (bce-v3)**. Elle n'a besoin que de la valeur **API Key** ; aucune Secret Key n'est nécessaire avec ce mode d'authentification.
+Ajoute :
 
-Sous WSL/Linux :
+```env
+LARA_ACCESS_KEY_ID="ta_access_key_id"
+LARA_ACCESS_KEY_SECRET="ta_access_key_secret"
+```
+
+Puis redémarre l'application :
 
 ```bash
-export BAIDU_API_KEY="ta_api_key"
 bash run.sh
 ```
 
-L'API Key est envoyée dans l'en-tête HTTP :
+### Où récupérer les clés Lara ?
 
-```
-Authorization: Bearer <API_KEY>
-```
+Connecte-toi à ton compte Lara Translate et crée/récupère tes identifiants API (**Access Key ID** et **Access Key Secret**).
 
-Ne mets jamais ta clé dans GitHub.
+**Ne mets jamais tes clés Lara directement dans le code ni dans GitHub.** Le fichier `.env` doit rester local et ne doit pas être committe.
+
+Si tu utilises Git, vérifie que `.env` est bien présent dans `.gitignore`.
 
 ## Utilisation
 
@@ -37,10 +41,11 @@ Ne mets jamais ta clé dans GitHub.
 
 Formats acceptés : JPG, JPEG, PNG et WebP.
 
-## Limites Baidu
-
-Pour l'API Image Translation, Baidu indique notamment une taille maximale de 4 Mo par image, un côté maximal de 4096 px et un côté minimal de 30 px. L'application compresse/redimensionne automatiquement les images trop grandes avant l'envoi.
-
 ## Sécurité
 
-La clé API est lue uniquement depuis la variable d'environnement `BAIDU_API_KEY`. Ne la committe jamais dans le dépôt.
+Les identifiants Lara sont lus uniquement depuis les variables d'environnement :
+
+- `LARA_ACCESS_KEY_ID`
+- `LARA_ACCESS_KEY_SECRET`
+
+Ne les committe jamais dans le dépôt GitHub.
