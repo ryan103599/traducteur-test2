@@ -148,11 +148,33 @@ def read_lara_profiles():
 
 
 def save_lara_profiles(profiles):
-    LARA_PROFILES_PATH.write_text(json.dumps(profiles, ensure_ascii=False, indent=2), encoding="utf-8")
+    tmp_path = LARA_PROFILES_PATH.with_suffix(".tmp")
+    tmp_path.write_text(
+        json.dumps(profiles, ensure_ascii=False, indent=2),
+        encoding="utf-8",
+    )
+    tmp_path.replace(LARA_PROFILES_PATH)
+
+
+def active_lara_profile_name():
+    values = read_env_values()
+    active_id = values.get("LARA_ACCESS_KEY_ID", "")
+    for profile in read_lara_profiles():
+        if profile.get("access_key_id", "") == active_id:
+            return profile.get("name", "")
+    return ""
 
 
 def lara_profiles_for_admin():
-    return [{"name": p.get("name",""), "access_key_id": p.get("access_key_id",""), "access_key_secret": "••••••••" if p.get("access_key_secret") else ""} for p in read_lara_profiles()]
+    return [
+        {
+            "name": p.get("name", ""),
+            "access_key_id": p.get("access_key_id", ""),
+            "access_key_secret": "••••••••" if p.get("access_key_secret") else "",
+            "active": p.get("name", "") == active_lara_profile_name(),
+        }
+        for p in read_lara_profiles()
+    ]
 
 
 def update_runtime_lara_keys(access_key_id, access_key_secret):
@@ -396,11 +418,11 @@ CONFIG_ADMIN_PAGE = """<!doctype html><html lang="fr"><head><meta charset="utf-8
 body{margin:0;font-family:Inter,system-ui,sans-serif;background:#f4f7fb;color:#172033}.layout{display:flex;min-height:100vh}.sidebar{width:250px;background:#111827;color:#fff;padding:24px 16px;position:fixed;inset:0 auto 0 0}.brand{font-size:20px;font-weight:800;padding:8px 10px 26px}.brand span{display:inline-grid;place-items:center;width:38px;height:38px;border-radius:11px;background:linear-gradient(135deg,#635bff,#8b5cf6);margin-right:9px;vertical-align:middle}.nav{display:grid;gap:6px}.nav a{color:#d1d5db;text-decoration:none;padding:12px;border-radius:10px;font-weight:650}.nav a:hover,.nav a.active{background:#ffffff14;color:#fff}.main{margin-left:250px;padding:32px;width:calc(100% - 250px);max-width:1100px}.card{background:#fff;border:1px solid #e4e7ec;border-radius:16px;padding:24px}.profile-card{margin-bottom:22px;padding:18px;border:1px solid #e4e7ec;border-radius:13px;background:#fafbff}.profile-card h2{margin:0 0 5px;font-size:17px}.profile-card p{margin:0 0 14px;color:#667085;font-size:13px}.profile-row{display:flex;gap:9px;margin-top:9px}.profile-row select,.profile-row input{flex:1;min-width:0;padding:11px;border:1px solid #d0d5dd;border-radius:9px;font:inherit}.profile-btn{border:0;border-radius:9px;padding:10px 13px;background:#635bff;color:#fff;font-weight:750;cursor:pointer}.danger-btn{background:#b42318}.profile-msg{display:none;margin-top:10px;padding:9px;border-radius:8px;font-size:13px}.profile-msg.show{display:block;background:#ecfdf3;color:#067647}.grid{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:20px}.grid label{font-size:13px;font-weight:700}.grid input{width:100%;margin-top:7px;padding:12px;border:1px solid #d0d5dd;border-radius:9px;box-sizing:border-box}.actions{grid-column:1/-1;display:flex;gap:12px;align-items:center}.save{border:0;border-radius:9px;padding:12px 16px;background:#635bff;color:#fff;font-weight:800;cursor:pointer}.msg{display:none;padding:11px;border-radius:9px;margin-top:15px}.msg.ok{display:block;background:#ecfdf3;color:#067647}.msg.err{display:block;background:#fef3f2;color:#b42318}@media(max-width:650px){.layout{display:block}.sidebar{position:static;width:auto;padding:12px}.nav{display:flex;overflow:auto}.main{margin:0;width:auto;padding:20px}.grid{grid-template-columns:1fr}.actions{grid-column:auto}}
 </style></head><body><div class="layout"><aside class="sidebar"><div class="brand"><span>文</span> Administration</div><nav class="nav"><a href="/admin">📊 Tableau de bord</a><a href="/admin/images">🖼️ Images</a><a href="/admin/config" class="active">⚙️ Configuration</a><a href="/">← Retour au traducteur</a><a href="/admin/logout">↪ Déconnexion</a></nav></aside><main class="main"><h1>Configuration</h1><p>Modification sécurisée du fichier <code>.env</code>.</p><div class="card"><div id="msg" class="msg"></div><div class="profile-card"><h2>🔑 Configurations Lara</h2><p>Conserve plusieurs comptes/clés Lara et bascule rapidement entre eux.</p><div class="profile-row"><select id="profiles"><option value="">Choisir une configuration enregistrée…</option></select><button type="button" class="profile-btn" id="useProfile">Utiliser</button><button type="button" class="profile-btn danger-btn" id="deleteProfile">Supprimer</button></div><div class="profile-row"><input id="profileName" placeholder="Nom, ex. Compte principal"><button type="button" class="profile-btn" id="saveProfile">💾 Enregistrer les clés actuelles</button></div><div id="profileMsg" class="profile-msg"></div></div><form id="form" class="grid">
 <label>Clé Lara — Access Key ID<input name="LARA_ACCESS_KEY_ID" type="password" placeholder="Laisser vide pour conserver"></label><label>Clé Lara — Access Key Secret<input name="LARA_ACCESS_KEY_SECRET" type="password" placeholder="Laisser vide pour conserver"></label><label>Identifiant administrateur<input name="ADMIN_USERNAME"></label><label>Mot de passe administrateur<input name="ADMIN_PASSWORD" type="password" placeholder="Laisser vide pour conserver"></label><label>Secret de session<input name="ADMIN_SESSION_SECRET" type="password" placeholder="Laisser vide pour conserver"></label><label>Port du serveur<input name="PORT" type="number" min="1" max="65535"></label><div class="actions"><button class="save">💾 Enregistrer</button><label class="restart-option"><input id="restart" type="checkbox"> Redémarrer automatiquement le service après l'enregistrement</label></div></form></div></main></div><script>
-const form=document.getElementById("form"),msg=document.getElementById("msg"),restart=document.getElementById("restart"),profiles=document.getElementById("profiles"),profileName=document.getElementById("profileName"),profileMsg=document.getElementById("profileMsg");function show(t,e=false){msg.textContent=t;msg.className="msg "+(e?"err":"ok")}async function load(){const r=await fetch("/api/admin/env");const d=await r.json();if(!r.ok)return show(d.error,true);Object.entries(d.values).forEach(([k,v])=>{const e=form.elements[k];if(e)e.value=v==="••••••••"?"":v})}form.onsubmit=async e=>{e.preventDefault();const data=Object.fromEntries(new FormData(form));const r=await fetch("/api/admin/env",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(data)});const d=await r.json();if(!r.ok){show(d.error||"Erreur d'enregistrement",true);return}if(restart.checked){show("Configuration enregistrée. Redémarrage du service…");await fetch("/api/admin/restart",{method:"POST"});setTimeout(()=>location.href="/",2200)}else{show(d.message||"Configuration enregistrée.")}};async function loadProfiles(){const r=await fetch("/api/admin/lara-profiles");const d=await r.json();if(!r.ok)return;profiles.innerHTML='<option value="">Choisir une configuration enregistrée…</option>'+d.profiles.map(p=>'<option value="'+ep(p.name)+'">'+ep(p.name)+' — '+ep(p.access_key_id)+'</option>').join("")}
+const form=document.getElementById("form"),msg=document.getElementById("msg"),restart=document.getElementById("restart"),profiles=document.getElementById("profiles"),profileName=document.getElementById("profileName"),profileMsg=document.getElementById("profileMsg");function show(t,e=false){msg.textContent=t;msg.className="msg "+(e?"err":"ok")}async function load(){const r=await fetch("/api/admin/env");const d=await r.json();if(!r.ok)return show(d.error,true);Object.entries(d.values).forEach(([k,v])=>{const e=form.elements[k];if(e)e.value=v==="••••••••"?"":v})}form.onsubmit=async e=>{e.preventDefault();const data=Object.fromEntries(new FormData(form));const r=await fetch("/api/admin/env",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(data)});const d=await r.json();if(!r.ok){show(d.error||"Erreur d'enregistrement",true);return}if(restart.checked){show("Configuration enregistrée. Redémarrage du service…");await fetch("/api/admin/restart",{method:"POST"});setTimeout(()=>location.href="/",2200)}else{show(d.message||"Configuration enregistrée.")}};async function loadProfiles(){const r=await fetch("/api/admin/lara-profiles");const d=await r.json();if(!r.ok){pmsg(d.error||"Impossible de charger les configurations.");return}profiles.innerHTML='<option value="">Choisir une configuration enregistrée…</option>'+d.profiles.map(p=>'<option value="'+ep(p.name)+'">'+(p.active?"✓ Actif — ":"")+ep(p.name)+' — '+ep(p.access_key_id)+'</option>').join("")}
 function ep(v){return String(v??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]))}
 function pmsg(t){profileMsg.textContent=t;profileMsg.className="profile-msg show"}
 document.getElementById("saveProfile").onclick=async()=>{const name=profileName.value.trim(),id=form.elements.LARA_ACCESS_KEY_ID.value.trim(),secret=form.elements.LARA_ACCESS_KEY_SECRET.value.trim();if(!name)return pmsg("Indique un nom.");if(!id||!secret)return pmsg("Saisis les deux clés Lara avant de sauvegarder.");const r=await fetch("/api/admin/lara-profiles",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({name,access_key_id:id,access_key_secret:secret})});const d=await r.json();if(!r.ok)return pmsg(d.error||"Erreur.");pmsg(d.message);await loadProfiles()}
-document.getElementById("useProfile").onclick=async()=>{if(!profiles.value)return pmsg("Choisis une configuration.");const r=await fetch("/api/admin/lara-profiles/use",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({name:profiles.value})});const d=await r.json();if(!r.ok)return pmsg(d.error||"Erreur.");form.elements.LARA_ACCESS_KEY_ID.value="";form.elements.LARA_ACCESS_KEY_SECRET.value="";pmsg(d.message+" Les clés sont actives immédiatement.")}
+document.getElementById("useProfile").onclick=async()=>{if(!profiles.value)return pmsg("Choisis une configuration.");const r=await fetch("/api/admin/lara-profiles/use",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({name:profiles.value})});const d=await r.json();if(!r.ok)return pmsg(d.error||"Erreur.");form.elements.LARA_ACCESS_KEY_ID.value="";form.elements.LARA_ACCESS_KEY_SECRET.value="";pmsg(d.message+" Les clés sont actives immédiatement et enregistrées dans .env.")}
 document.getElementById("deleteProfile").onclick=async()=>{if(!profiles.value)return pmsg("Choisis une configuration.");if(!confirm("Supprimer cette configuration enregistrée ?"))return;const r=await fetch("/api/admin/lara-profiles/"+encodeURIComponent(profiles.value),{method:"DELETE"});const d=await r.json();if(!r.ok)return pmsg(d.error||"Erreur.");pmsg("Configuration supprimée.");await loadProfiles()}
 load();loadProfiles();
 </script></main></div></body></html>"""
@@ -648,18 +670,25 @@ def admin_save_lara_profile():
     name = str(data.get("name", "")).strip()
     access_key_id = str(data.get("access_key_id", "")).strip()
     access_key_secret = str(data.get("access_key_secret", "")).strip()
+
     if not name:
         return jsonify(error="Donne un nom à cette configuration."), 400
     if not access_key_id or not access_key_secret:
         return jsonify(error="Les deux clés Lara sont obligatoires."), 400
+
     profiles = read_lara_profiles()
     profile = {"name": name, "access_key_id": access_key_id, "access_key_secret": access_key_secret}
-    existing = next((i for i,p in enumerate(profiles) if p.get("name") == name), None)
+    existing = next((i for i, p in enumerate(profiles) if p.get("name") == name), None)
     if existing is None:
         profiles.append(profile)
     else:
         profiles[existing] = profile
-    save_lara_profiles(profiles)
+
+    try:
+        save_lara_profiles(profiles)
+    except OSError as exc:
+        return jsonify(error=f"Impossible d'enregistrer les clés Lara : {exc}"), 500
+
     return jsonify(ok=True, message=f'Configuration "{name}" enregistrée.', profiles=lara_profiles_for_admin())
 
 
@@ -673,9 +702,17 @@ def admin_use_lara_profile():
     profile = next((p for p in read_lara_profiles() if p.get("name") == name), None)
     if not profile:
         return jsonify(error="Configuration Lara introuvable."), 404
+
+    try:
+        update_env_values({
+            "LARA_ACCESS_KEY_ID": profile.get("access_key_id", ""),
+            "LARA_ACCESS_KEY_SECRET": profile.get("access_key_secret", ""),
+        })
+    except OSError as exc:
+        return jsonify(error=f"Impossible d'activer cette configuration : {exc}"), 500
+
     update_runtime_lara_keys(profile.get("access_key_id", ""), profile.get("access_key_secret", ""))
-    update_env_values({"LARA_ACCESS_KEY_ID": profile.get("access_key_id", ""), "LARA_ACCESS_KEY_SECRET": profile.get("access_key_secret", "")})
-    return jsonify(ok=True, message=f'Configuration "{name}" activée.')
+    return jsonify(ok=True, message=f'Configuration "{name}" activée.', profiles=lara_profiles_for_admin())
 
 
 @app.delete("/api/admin/lara-profiles/<path:name>")
@@ -684,11 +721,16 @@ def admin_delete_lara_profile(name):
     if auth:
         return auth
     profiles = read_lara_profiles()
-    remaining = [p for p in profiles if p.get("name") != name]
-    if len(remaining) == len(profiles):
+    target = next((p for p in profiles if p.get("name") == name), None)
+    if not target:
         return jsonify(error="Configuration Lara introuvable."), 404
-    save_lara_profiles(remaining)
-    return jsonify(ok=True)
+    if target.get("name") == active_lara_profile_name():
+        return jsonify(error="Impossible de supprimer la configuration Lara actuellement active. Active d'abord une autre configuration."), 400
+    try:
+        save_lara_profiles([p for p in profiles if p.get("name") != name])
+    except OSError as exc:
+        return jsonify(error=f"Impossible de supprimer la configuration : {exc}"), 500
+    return jsonify(ok=True, profiles=lara_profiles_for_admin())
 
 
 @app.get("/api/admin/storage")
