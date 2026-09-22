@@ -442,6 +442,9 @@ def set_job(job_id, **values):
 
 
 def worker(job_id, files, source, target, client_ip):
+    # Une traduction entière reste rattachée à la clé utilisée au démarrage,
+    # même si une autre clé est activée dans l'administration pendant le traitement.
+    usage_key_id = os.getenv("LARA_ACCESS_KEY_ID", "").strip()
     work = Path(tempfile.mkdtemp(prefix="traducteur_"))
     out = work / "traduit"
     out.mkdir()
@@ -495,7 +498,7 @@ def worker(job_id, files, source, target, client_ip):
                 used_lara = False
                 set_job(job_id, message=f"Image {i}/{total} : aucun texte détecté, image conservée")
             if used_lara:
-                record_image()
+                record_image(usage_key_id)
                 billed_images += 1
             results.append(dest)
             if used_lara:
@@ -830,7 +833,7 @@ def admin_download_storage_file():
 
 @app.get("/api/lara-usage")
 def lara_usage():
-    return jsonify(get_usage())
+    return jsonify(get_usage(os.getenv("LARA_ACCESS_KEY_ID", "").strip()))
 
 
 @app.post("/translate")
