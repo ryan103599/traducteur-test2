@@ -23,7 +23,7 @@ app.secret_key = os.getenv("ADMIN_SESSION_SECRET", "").strip() or os.urandom(32)
 
 JOBS = {}
 LOCK = threading.Lock()
-RETENTION_SECONDS = 2 * 24 * 60 * 60
+RETENTION_SECONDS = 60 * 24 * 60 * 60
 CLEANUP_INTERVAL_SECONDS = 60 * 60
 TEMP_PREFIX = "traducteur_"
 STORAGE_PATH = Path(__file__).resolve().parent / "storage"
@@ -293,7 +293,7 @@ def list_stored_files():
 
 
 def cleanup_old_files():
-    """Supprime les dossiers de traduction vieux de plus de 2 jours."""
+    """Supprime les dossiers de traduction vieux de plus de 60 jours."""
     cutoff = time.time() - RETENTION_SECONDS
     for root in storage_roots():
         try:
