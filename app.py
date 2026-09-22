@@ -538,6 +538,7 @@ def download(job_id):
 if __name__ == "__main__":
     cleanup_old_files()
     threading.Thread(target=cleanup_loop, daemon=True).start()
-    print("Serveur local : http://127.0.0.1:8686")
-    print("Serveur réseau : http://0.0.0.0:8686")
-    app.run(host="0.0.0.0", port=8686, threaded=True)
+    port = int(os.getenv("PORT", "8686"))
+    print(f"Serveur local : http://127.0.0.1:{port}")
+    print(f"Serveur réseau : http://0.0.0.0:{port}")
+    app.run(host="0.0.0.0", port=port, threaded=True)
