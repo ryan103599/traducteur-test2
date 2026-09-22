@@ -88,6 +88,13 @@ def list_stored_files():
                 continue
             created = work.stat().st_mtime
             expires = created + RETENTION_SECONDS
+            metadata = {}
+            metadata_path = work / "metadata.json"
+            try:
+                if metadata_path.is_file():
+                    metadata = json.loads(metadata_path.read_text(encoding="utf-8"))
+            except (OSError, ValueError, TypeError):
+                metadata = {}
             files = []
             total_size = 0
             for path in work.rglob("*"):
@@ -95,7 +102,7 @@ def list_stored_files():
                     size = path.stat().st_size
                     total_size += size
                     files.append({"name": str(path.relative_to(work)), "size": size, "size_human": format_size(size)})
-            items.append({"id": work.name, "created": created, "expires": expires, "expires_in": max(0, int(expires - now)), "size": total_size, "size_human": format_size(total_size), "files": files})
+            items.append({"id": work.name, "created": created, "expires": expires, "expires_in": max(0, int(expires - now)), "size": total_size, "size_human": format_size(total_size), "files": files, "metadata": metadata})
         except OSError:
             continue
     items.sort(key=lambda item: item["created"], reverse=True)
@@ -245,18 +252,18 @@ body{font-family:system-ui,-apple-system,Segoe UI,sans-serif;max-width:1200px;ma
 .muted{color:#667085}.section{margin-top:24px;padding:18px;border:1px solid #eaecf0;border-radius:14px}
 .section h2,.section h3{margin-top:0}.file-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:16px}
 .file-card{border:1px solid #eaecf0;border-radius:12px;padding:10px;background:#fafafa}
-.file-card img{display:block;width:100%;height:170px;object-fit:contain;background:white;border-radius:8px;margin-bottom:8px}
+.file-card img{display:block;width:100%;height:170px;object-fit:contain;background:white;border-radius:8px;margin-bottom:8px;cursor:zoom-in}.modal{position:fixed;inset:0;background:#000b;display:none;align-items:center;justify-content:center;padding:20px;z-index:1000}.modal.open{display:flex}.modal img{max-width:95vw;max-height:90vh;object-fit:contain;background:white;border-radius:10px}.modal-close{position:absolute;top:16px;right:20px;background:white;border:0;border-radius:50%;width:42px;height:42px;font-size:24px;cursor:pointer}
 .file-name{font-size:.9rem;word-break:break-word}.file-meta{font-size:.8rem;color:#667085;margin-top:4px}
 .file-actions{margin-top:8px}.file-actions a{color:#175cd3;margin-right:12px}
 .zip-file{margin-top:16px;padding:12px;border:1px dashed #d0d5dd;border-radius:10px}
 .danger{padding:9px 14px;border:0;border-radius:8px;background:#b42318;color:white;cursor:pointer}
 .empty{padding:30px;text-align:center;color:#667085}
-.error{padding:14px;background:#fef3f2;color:#b42318;border-radius:10px;margin-top:15px}
+.error{padding:14px;background:#fef3f2;color:#b42318;border-radius:10px;margin-top:15px}.job-info{margin-top:10px;padding:10px 12px;background:#f8f9fc;border-radius:9px;font-size:.9rem;color:#475467}
 </style></head><body><div class="card">
 <h1>Administration du stockage</h1>
 <p class="muted">Fichiers temporaires conservés pendant 48 heures maximum.</p>
 <p><a href="/admin/logout">Se déconnecter</a> · <a href="/">← Retour au traducteur</a></p>
-<div id="error"></div><div class="filters"><button type="button" class="filter active" data-filter="all">Toutes</button><button type="button" class="filter" data-filter="translated">Images traduites</button><button type="button" class="filter" data-filter="uploaded">Images envoyées</button></div><div id="jobs"></div>
+<div id="error"></div><div id="imageModal" class="modal" onclick="closeImage(event)"><button class="modal-close" type="button" onclick="closeImage(event)">×</button><img id="modalImage" src="" alt="Aperçu agrandi"></div><div class="filters"><button type="button" class="filter active" data-filter="all">Toutes</button><button type="button" class="filter" data-filter="translated">Images traduites</button><button type="button" class="filter" data-filter="uploaded">Images envoyées</button></div><div id="jobs"></div>
 </div>
 <script>
 let currentFilter="all"; function fmtDate(ts){return new Date(ts*1000).toLocaleString("fr-FR")}
@@ -264,9 +271,9 @@ function fileUrl(item,f){return '/api/admin/storage/file?work_id='+encodeURIComp
 function esc(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;')}
 function card(item,f){
   const url=fileUrl(item,f);
-  return '<div class="file-card"><img src="'+url+'&preview=1" alt=""><div class="file-name">'+esc(f.name)+'</div><div class="file-meta">'+esc(f.size_human)+'</div><div class="file-actions"><a href="'+url+'">Télécharger</a></div></div>';
+  return '<div class="file-card"><img src="'+url+'&preview=1" alt="" onclick="openImage(\''+url+'&preview=1\')"><div class="file-name">'+esc(f.name)+'</div><div class="file-meta">'+esc(f.size_human)+'</div><div class="file-actions"><a href="'+url+'">Télécharger</a></div></div>';
 }
-async function load(){
+function openImage(url){document.getElementById("modalImage").src=url;document.getElementById("imageModal").classList.add("open")} function closeImage(e){if(e.target.id==="imageModal"||e.target.classList.contains("modal-close")){document.getElementById("imageModal").classList.remove("open");document.getElementById("modalImage").src=""}} async function load(){
   try{
     const r=await fetch('/api/admin/storage',{credentials:'same-origin'});
     if(!r.ok) throw new Error('Session administrateur expirée. Recharge la page et reconnecte-toi.');
@@ -279,7 +286,7 @@ async function load(){
       const showInputs=currentFilter==='all'||currentFilter==='uploaded';
       const showOutputs=currentFilter==='all'||currentFilter==='translated';
       const section=document.createElement('div'); section.className='section';
-      section.innerHTML='<h2>'+esc(item.id)+'</h2><div class="muted">Créé le '+fmtDate(item.created)+' · Expire le '+fmtDate(item.expires)+' · '+esc(item.size_human)+'</div>'+
+      const meta=item.metadata||{}; const info='<div class="job-info"><strong>Informations</strong> · IP client : '+esc(meta.client_ip||'inconnue')+' · Date/heure : '+fmtDate(meta.created_at||item.created)+' · Source : '+esc(meta.source||'auto')+' · Cible : '+esc(meta.target||'')+' · Images : '+esc(meta.image_count??'')+'</div>'; section.innerHTML='<h2>'+esc(item.id)+'</h2><div class="muted">Créé le '+fmtDate(item.created)+' · Expire le '+fmtDate(item.expires)+' · '+esc(item.size_human)+'</div>'+info+
       (showInputs?'<div class="section"><h3>Images envoyées</h3><div class="file-grid">'+(inputs.length?inputs.map(f=>card(item,f)).join(''):'<div class="muted">Aucune image envoyée.</div>')+'</div></div>':'')+
       (showOutputs?'<div class="section"><h3>Images traduites</h3><div class="file-grid">'+(outputs.length?outputs.map(f=>card(item,f)).join(''):'<div class="muted">Aucune image traduite.</div>')+'</div></div>':'')+
       '<div class="zip-file"><strong>ZIP :</strong> '+(zips.length?zips.map(f=>'<a href="'+fileUrl(item,f)+'">Télécharger le ZIP</a>').join(' · '):'aucun')+'</div>'+
@@ -303,6 +310,17 @@ def worker(job_id, files, source, target):
     out.mkdir()
     try:
         total = len(files)
+        metadata_path = work / "metadata.json"
+        try:
+            metadata_path.write_text(json.dumps({
+                "job_id": job_id,
+                "created_at": time.time(),
+                "source": source,
+                "target": target,
+                "image_count": total,
+            }, ensure_ascii=False, indent=2), encoding="utf-8")
+        except OSError:
+            pass
         results = []
         billed_images = 0
         for i, item in enumerate(files, 1):
@@ -472,10 +490,20 @@ def translate():
     if not items:
         return jsonify(error="Aucune image JPG, PNG, WebP ou TIFF valide."), 400
     job = uuid.uuid4().hex
-    set_job(job, state="running", message="Démarrage…")
     source = request.form.get("source", "auto")
     if source != "auto" and source not in LANGUAGES:
         return jsonify(error="Langue source invalide."), 400
+    client_ip = request.remote_addr or "inconnue"
+    metadata = {
+        "job_id": job,
+        "created_at": time.time(),
+        "client_ip": client_ip,
+        "source": source,
+        "target": target,
+        "image_count": len(items),
+        "files": [str(item["name"]) for item in items],
+    }
+    set_job(job, state="running", message="Démarrage…", **metadata)
     threading.Thread(target=worker, args=(job, items, source, target), daemon=True).start()
     return jsonify(job=job)
 
