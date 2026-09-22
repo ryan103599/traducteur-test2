@@ -398,7 +398,23 @@ def worker(job_id, files, source, target):
             message = f"{total} image(s) traduite(s)."
             set_job(job_id, state="done", message=message, zip=str(zip_path))
     except Exception as exc:
-        set_job(job_id, state="error", message=f"❌ {type(exc).__name__}: {exc}")
+        # Même en cas d'erreur inattendue, créer un ZIP avec tout ce qui a déjà été produit.
+        try:
+            zip_path = work / "images_traduites.zip"
+            existing_results = [p for p in results if Path(p).is_file()] if "results" in locals() else []
+            if not zip_path.exists():
+                with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_DEFLATED) as z:
+                    for path in existing_results:
+                        z.write(path, path.name)
+            count = len(existing_results)
+            message = f"Traitement interrompu : {type(exc).__name__}: {exc}"
+            if count:
+                message += f" Le ZIP incomplet contenant {count} image(s) déjà traitée(s) est disponible."
+            else:
+                message += " Aucun fichier traduit n'est disponible dans le ZIP."
+            set_job(job_id, state="done", message=message, zip=str(zip_path), incomplete=True)
+        except Exception as zip_exc:
+            set_job(job_id, state="error", message=f"❌ {type(exc).__name__}: {exc} (création du ZIP impossible : {zip_exc})")
     finally:
         set_job(job_id, work=str(work))
 
