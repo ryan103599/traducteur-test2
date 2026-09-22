@@ -331,95 +331,55 @@ button{margin-top:20px;background:#111827;color:white;border:0;cursor:pointer;fo
 
 ADMIN_PAGE = """<!doctype html>
 <html lang="fr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Administration du stockage</title>
+<title>Administration · Traducteur d'images</title>
 <style>
-body{font-family:system-ui,-apple-system,Segoe UI,sans-serif;max-width:1200px;margin:40px auto;padding:0 20px;background:#f5f7fb;color:#18202a}
-.card{background:white;border-radius:18px;padding:28px;box-shadow:0 8px 30px #00000012}
-.muted{color:#667085}.section{margin-top:24px;padding:18px;border:1px solid #eaecf0;border-radius:14px}
-.section h2,.section h3{margin-top:0}.file-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:16px}
-.file-card{border:1px solid #eaecf0;border-radius:12px;padding:10px;background:#fafafa}
-.file-card img{display:block;width:100%;height:170px;object-fit:contain;background:white;border-radius:8px;margin-bottom:8px;cursor:zoom-in}.modal{position:fixed;inset:0;background:#000b;display:none;align-items:center;justify-content:center;padding:20px;z-index:1000}.modal.open{display:flex}.modal img{max-width:95vw;max-height:90vh;object-fit:contain;background:white;border-radius:10px}.modal-close{position:absolute;top:16px;right:20px;background:white;border:0;border-radius:50%;width:42px;height:42px;font-size:24px;cursor:pointer}
-.file-name{font-size:.9rem;word-break:break-word}.file-meta{font-size:.8rem;color:#667085;margin-top:4px}
-.file-actions{margin-top:8px}.file-actions a{color:#175cd3;margin-right:12px}
-.zip-file{margin-top:16px;padding:12px;border:1px dashed #d0d5dd;border-radius:10px}
-.danger{padding:9px 14px;border:0;border-radius:8px;background:#b42318;color:white;cursor:pointer}
-.empty{padding:30px;text-align:center;color:#667085}
-.error{padding:14px;background:#fef3f2;color:#b42318;border-radius:10px;margin-top:15px}.job-info{margin-top:10px;padding:10px 12px;background:#f8f9fc;border-radius:9px;font-size:.9rem;color:#475467}
-.settings-card{margin-top:24px;padding:22px;border:1px solid #e4e7ec;border-radius:16px;background:linear-gradient(145deg,#ffffff,#f8f9ff);box-shadow:0 8px 24px #1018280a}.settings-head{display:flex;justify-content:space-between;align-items:flex-start;gap:16px}.settings-head>div:first-child{display:flex;gap:12px;align-items:flex-start}.settings-head h2{margin:0 0 4px}.settings-head p{margin:0}.settings-icon{display:grid;place-items:center;width:42px;height:42px;border-radius:12px;background:#eef4ff;font-size:20px}.settings-badge{padding:6px 9px;border-radius:999px;background:#ecfdf3;color:#067647;font-size:.75rem;font-weight:800}.env-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:20px}.env-grid label{font-size:.85rem;font-weight:700;color:#344054}.env-grid input{width:100%;box-sizing:border-box;margin-top:7px;padding:12px 13px;border:1px solid #d0d5dd;border-radius:10px;background:white;font:inherit;outline:none}.env-grid input:focus{border-color:#635bff;box-shadow:0 0 0 4px #635bff18}.env-actions{grid-column:1/-1;display:flex;align-items:center;gap:14px;flex-wrap:wrap}.save-btn{border:0;border-radius:10px;padding:12px 17px;background:linear-gradient(135deg,#635bff,#7c3aed);color:white;font-weight:800;cursor:pointer}.env-actions span{font-size:.8rem;color:#667085}.settings-message{display:none;margin-top:14px;padding:11px 13px;border-radius:10px}.settings-message.ok{display:block;background:#ecfdf3;color:#067647}.settings-message.err{display:block;background:#fef3f2;color:#b42318}
-</style></head><body><div class="card">
-<h1>Administration du stockage</h1>
-<p class="muted">Fichiers temporaires conservés pendant 48 heures maximum.</p>
-<p><a href="/admin/logout">Se déconnecter</a> · <a href="/">← Retour au traducteur</a></p>
-<div id="envCard" class="settings-card">
-  <div class="settings-head"><div><span class="settings-icon">⚙</span><div><h2>Configuration</h2><p class="muted">Modifie les paramètres du fichier <code>.env</code> sans ouvrir le terminal.</p></div></div><span class="settings-badge">ADMIN</span></div>
-  <div id="envMessage" class="settings-message"></div>
-  <form id="envForm" class="env-grid">
-    <label>Clé Lara — Access Key ID<input name="LARA_ACCESS_KEY_ID" type="password" autocomplete="off" placeholder="Laisser vide pour conserver"></label>
-    <label>Clé Lara — Access Key Secret<input name="LARA_ACCESS_KEY_SECRET" type="password" autocomplete="off" placeholder="Laisser vide pour conserver"></label>
-    <label>Identifiant administrateur<input name="ADMIN_USERNAME" autocomplete="username"></label>
-    <label>Mot de passe administrateur<input name="ADMIN_PASSWORD" type="password" autocomplete="new-password" placeholder="Laisser vide pour conserver"></label>
-    <label>Secret de session<input name="ADMIN_SESSION_SECRET" type="password" autocomplete="new-password" placeholder="Laisser vide pour conserver"></label>
-    <label>Port du serveur<input name="PORT" type="number" min="1" max="65535" placeholder="8686"></label>
-    <div class="env-actions"><button type="submit" class="save-btn">💾 Enregistrer le .env</button><span>Les changements de port et d'identifiants prennent effet après redémarrage.</span></div>
-  </form>
-</div>
-<div id="error"></div><div id="imageModal" class="modal" onclick="closeImage(event)"><button class="modal-close" type="button" onclick="closeImage(event)">×</button><img id="modalImage" src="" alt="Aperçu agrandi"></div><div class="filters"><button type="button" class="filter active" data-filter="all">Toutes</button><button type="button" class="filter" data-filter="translated">Images traduites</button><button type="button" class="filter" data-filter="uploaded">Images envoyées</button></div><div id="jobs"></div>
-</div>
+:root{--bg:#f4f7fb;--card:#fff;--text:#172033;--muted:#667085;--line:#e4e7ec;--primary:#635bff;--danger:#b42318}
+*{box-sizing:border-box}body{margin:0;font-family:Inter,system-ui,-apple-system,"Segoe UI",sans-serif;color:var(--text);background:var(--bg)}
+.layout{display:flex;min-height:100vh}.sidebar{width:250px;background:#111827;color:#fff;padding:24px 16px;position:fixed;inset:0 auto 0 0}.brand{font-size:20px;font-weight:800;padding:8px 10px 26px}.brand span{display:inline-grid;place-items:center;width:38px;height:38px;border-radius:11px;background:linear-gradient(135deg,#635bff,#8b5cf6);margin-right:9px;vertical-align:middle}
+.nav{display:grid;gap:6px}.nav a{color:#d1d5db;text-decoration:none;padding:12px 13px;border-radius:10px;font-weight:650}.nav a:hover,.nav a.active{background:#ffffff14;color:#fff}.nav .back{margin-top:20px;border-top:1px solid #ffffff18;padding-top:20px}
+.main{margin-left:250px;width:calc(100% - 250px);padding:32px;max-width:1500px}.top{display:flex;justify-content:space-between;gap:20px;align-items:flex-start;margin-bottom:24px}.top h1{margin:0 0 6px;font-size:30px}.muted{color:var(--muted)}.card{background:white;border:1px solid var(--line);border-radius:18px;padding:22px;box-shadow:0 8px 30px #1018280a;margin-bottom:20px}
+.filters{display:grid;grid-template-columns:1.2fr 1fr 1fr 1fr 1fr auto;gap:10px;align-items:end}.filters label{font-size:12px;font-weight:750;color:#475467}.filters input,.filters select{width:100%;margin-top:6px;padding:11px 12px;border:1px solid #d0d5dd;border-radius:9px;font:inherit}.btn{border:0;border-radius:9px;padding:11px 14px;font-weight:750;cursor:pointer}.primary{background:var(--primary);color:#fff}.danger{background:var(--danger);color:#fff}.stats{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}.stat{padding:16px;border:1px solid var(--line);border-radius:12px;background:#fafbff}.stat b{display:block;font-size:23px;margin-top:5px}.job{border:1px solid var(--line);border-radius:16px;padding:18px;margin-top:14px}.job-head{display:flex;justify-content:space-between;gap:15px}.job-title{font-weight:800}.job-meta{font-size:13px;color:#667085;margin-top:5px}.section{margin-top:15px}.section h3{font-size:15px;margin:0 0 10px}.file-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:12px}.file-card{border:1px solid var(--line);border-radius:11px;padding:9px;background:#fafafa}.file-card img{width:100%;height:145px;object-fit:contain;background:#fff;border-radius:8px;cursor:zoom-in}.file-name{font-size:13px;word-break:break-word;margin-top:7px}.file-meta{font-size:12px;color:#667085;margin-top:3px}.file-actions{margin-top:6px}.file-actions a{color:#4f46e5;text-decoration:none;font-size:13px}.zip{margin-top:15px;padding:12px;border:1px dashed #d0d5dd;border-radius:10px}.empty{padding:45px;text-align:center;color:#667085}.modal{position:fixed;inset:0;background:#000b;display:none;align-items:center;justify-content:center;padding:20px;z-index:1000}.modal.open{display:flex}.modal img{max-width:95vw;max-height:90vh;background:white;border-radius:10px}.modal-close{position:absolute;top:16px;right:20px;border:0;border-radius:50%;width:42px;height:42px;font-size:24px;cursor:pointer}.settings-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px}.settings-grid label{font-size:13px;font-weight:700}.settings-grid input{width:100%;margin-top:7px;padding:11px;border:1px solid #d0d5dd;border-radius:9px}.actions{grid-column:1/-1;display:flex;gap:12px;align-items:center}.msg{display:none;padding:11px;border-radius:9px;margin:14px 0}.msg.ok{display:block;background:#ecfdf3;color:#067647}.msg.err{display:block;background:#fef3f2;color:#b42318}
+@media(max-width:900px){.sidebar{width:210px}.main{margin-left:210px;width:calc(100% - 210px);padding:20px}.filters{grid-template-columns:1fr 1fr}.stats{grid-template-columns:1fr 1fr}}
+@media(max-width:650px){.layout{display:block}.sidebar{position:static;width:auto;padding:12px}.brand{padding:5px 8px 12px}.nav{display:flex;overflow:auto}.nav .back{margin:0;border:0;padding:12px}.main{margin:0;width:auto}.top{display:block}.filters,.settings-grid{grid-template-columns:1fr}.stats{grid-template-columns:1fr 1fr}.actions{grid-column:auto}}
+</style></head><body>
+<div class="layout"><aside class="sidebar"><div class="brand"><span>文</span> Administration</div><nav class="nav">
+<a href="/admin" class="active">📊 Tableau de bord</a><a href="/admin/images">🖼️ Images</a><a href="/admin/config">⚙️ Configuration</a><a class="back" href="/">← Retour au traducteur</a><a href="/admin/logout">↪ Déconnexion</a>
+</nav></aside><main class="main"><div class="top"><div><h1>Tableau de bord</h1><div class="muted">Vue globale du stockage temporaire et des traitements.</div></div></div>
+<div class="stats" id="stats"></div><div class="card"><h2>Derniers traitements</h2><div id="recent"></div></div></main></div>
 <script>
-let currentFilter="all"; function fmtDate(ts){return new Date(ts*1000).toLocaleString("fr-FR")}
-async function loadEnv(){
-  try{
-    const r=await fetch('/api/admin/env',{credentials:'same-origin'}); const d=await r.json();
-    if(!r.ok) throw new Error(d.error||'Impossible de charger la configuration.');
-    Object.entries(d.values).forEach(([k,v])=>{const el=document.querySelector('[name="'+k+'"]');if(el) el.value=(v==="••••••••"?"":v)});
-  }catch(e){showEnvMessage(e.message,true)}
-}
-function showEnvMessage(msg,error=false){const el=document.getElementById("envMessage");el.textContent=msg;el.className="settings-message "+(error?"err":"ok")}
-document.getElementById("envForm").addEventListener("submit",async function(e){
-  e.preventDefault();
-  const data={}; new FormData(this).forEach((v,k)=>data[k]=v);
-  try{const r=await fetch('/api/admin/env',{method:'POST',headers:{'Content-Type':'application/json'},credentials:'same-origin',body:JSON.stringify(data)});const d=await r.json();if(!r.ok)throw new Error(d.error||'Enregistrement impossible.');showEnvMessage(d.message)}
-  catch(e){showEnvMessage(e.message,true)}
-});
-loadEnv();
-function fileUrl(item,f){return '/api/admin/storage/file?work_id='+encodeURIComponent(item.id)+'&path='+encodeURIComponent(f.name)}
-function esc(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;')}
-function card(item,f){
-  const url=fileUrl(item,f);
-  return '<div class="file-card"><img src="'+url+'&preview=1" alt="" onclick="openImage(\''+url+'&preview=1\')"><div class="file-name">'+esc(f.name)+'</div><div class="file-meta">'+esc(f.size_human)+'</div><div class="file-actions"><a href="'+url+'">Télécharger</a></div></div>';
-}
-function openImage(url){document.getElementById("modalImage").src=url;document.getElementById("imageModal").classList.add("open")} function closeImage(e){if(e.target.id==="imageModal"||e.target.classList.contains("modal-close")){document.getElementById("imageModal").classList.remove("open");document.getElementById("modalImage").src=""}} async function load(){
-  try{
-    const r=await fetch('/api/admin/storage',{credentials:'same-origin'});
-    if(!r.ok) throw new Error('Session administrateur expirée. Recharge la page et reconnecte-toi.');
-    const data=await r.json(); const body=document.getElementById('jobs'); body.innerHTML='';
-    if(!data.items.length){body.innerHTML='<div class="empty">Aucun fichier temporaire actuellement stocké.</div>';return}
-    for(const item of data.items){
-      const inputs=item.files.filter(f=>/^input_\\d+\\.(jpe?g|png|webp|tiff?)$/i.test(f.name));
-      const outputs=item.files.filter(f=>/^traduit\\//i.test(f.name)&&/\\.(jpe?g|png|webp|tiff?)$/i.test(f.name));
-      const zips=item.files.filter(f=>/\\.zip$/i.test(f.name));
-      const showInputs=currentFilter==='all'||currentFilter==='uploaded';
-      const showOutputs=currentFilter==='all'||currentFilter==='translated';
-      const section=document.createElement('div'); section.className='section';
-      const meta=item.metadata||{}; const info='<div class="job-info"><strong>Informations</strong> · IP client : '+esc(meta.client_ip||'inconnue')+' · Date/heure : '+fmtDate(meta.created_at||item.created)+' · Source : '+esc(meta.source||'auto')+' · Cible : '+esc(meta.target||'')+' · Images : '+esc(meta.image_count??'')+'</div>'; section.innerHTML='<h2>'+esc(item.id)+'</h2><div class="muted">Créé le '+fmtDate(item.created)+' · Expire le '+fmtDate(item.expires)+' · '+esc(item.size_human)+'</div>'+info+
-      (showInputs?'<div class="section"><h3>Images envoyées</h3><div class="file-grid">'+(inputs.length?inputs.map(f=>card(item,f)).join(''):'<div class="muted">Aucune image envoyée.</div>')+'</div></div>':'')+
-      (showOutputs?'<div class="section"><h3>Images traduites</h3><div class="file-grid">'+(outputs.length?outputs.map(f=>card(item,f)).join(''):'<div class="muted">Aucune image traduite.</div>')+'</div></div>':'')+
-      '<div class="zip-file"><strong>ZIP :</strong> '+(zips.length?zips.map(f=>'<a href="'+fileUrl(item,f)+'">Télécharger le ZIP</a>').join(' · '):'aucun')+'</div>'+
-      '<p><button class="danger" onclick="removeItem(\\''+esc(item.id)+'\\')">Supprimer maintenant</button></p>';
-      body.appendChild(section);
-    }
-  }catch(e){document.getElementById('error').innerHTML='<div class="error">'+esc(e.message)+'</div>'}
-}
-async function removeItem(id){if(!confirm('Supprimer définitivement ce dossier et toutes ses images ?'))return;const r=await fetch('/api/admin/storage/'+encodeURIComponent(id),{method:'DELETE',credentials:'same-origin'});if(!r.ok){const d=await r.json();alert(d.error||'Erreur');return}load()}
-document.querySelectorAll(".filter").forEach(function(b){b.addEventListener("click",function(){currentFilter=b.dataset.filter;document.querySelectorAll(".filter").forEach(function(x){x.classList.toggle("active",x===b)});load();});});load();setInterval(load,10000);
-</script></body></html>"""
+function fmt(ts){return new Date(ts*1000).toLocaleString("fr-FR")}function esc(s){return String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]))}
+async function load(){const r=await fetch("/api/admin/storage");if(!r.ok)return;const d=await r.json(),items=d.items;document.getElementById("stats").innerHTML=[["Dossiers",items.length],["Images envoyées",items.reduce((n,x)=>n+(x.metadata?.image_count||0),0)],["Stockage",items.reduce((n,x)=>n+x.size,0)/1024],["Dernière activité",items[0]?fmt(items[0].created):"—"]].map((x,i)=>'<div class="stat"><span class="muted">'+x[0]+'</span><b>'+((i===2)?(x[1]/1024>=1024?(x[1]/1024).toFixed(1)+" Mo":x[1].toFixed(1)+" Ko"):x[1])+'</b></div>').join("");
+document.getElementById("recent").innerHTML=items.slice(0,8).map(x=>'<div class="job"><div class="job-head"><div><div class="job-title">'+esc(x.id)+'</div><div class="job-meta">'+fmt(x.created)+' · '+esc(x.metadata?.client_ip||"inconnue")+' · '+esc(x.size_human)+'</div></div><a href="/admin/images?work_id='+encodeURIComponent(x.id)+'">Voir les images →</a></div></div>').join("")||'<div class="empty">Aucun traitement.</div>'}load();setInterval(load,10000);
+</script></main></div></body></html>
+
+IMAGES_ADMIN_PAGE = """<!doctype html>
+<html lang="fr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Administration · Images</title>
+<style>
+body{margin:0;font-family:Inter,system-ui,sans-serif;background:#f4f7fb;color:#172033}.layout{display:flex;min-height:100vh}.sidebar{width:250px;background:#111827;color:#fff;padding:24px 16px;position:fixed;inset:0 auto 0 0}.brand{font-size:20px;font-weight:800;padding:8px 10px 26px}.brand span{display:inline-grid;place-items:center;width:38px;height:38px;border-radius:11px;background:linear-gradient(135deg,#635bff,#8b5cf6);margin-right:9px;vertical-align:middle}.nav{display:grid;gap:6px}.nav a{color:#d1d5db;text-decoration:none;padding:12px;border-radius:10px;font-weight:650}.nav a:hover,.nav a.active{background:#ffffff14;color:#fff}.main{margin-left:250px;padding:32px;width:calc(100% - 250px);max-width:1500px}.card,.job{background:#fff;border:1px solid #e4e7ec;border-radius:16px;padding:20px;margin-bottom:18px}.filters{display:grid;grid-template-columns:1.2fr 1fr 1fr 1fr 1fr auto;gap:9px;align-items:end}.filters label{font-size:12px;font-weight:750}.filters input{width:100%;margin-top:6px;padding:10px;border:1px solid #d0d5dd;border-radius:9px}.btn{border:0;border-radius:9px;padding:10px 14px;background:#635bff;color:#fff;font-weight:750;cursor:pointer}.subfilters{display:flex;gap:8px;margin-top:12px}.tab{border:1px solid #d0d5dd;background:#fff;padding:8px 12px;border-radius:9px;cursor:pointer}.tab.active{background:#eef4ff;color:#3538cd;border-color:#c7d7fe}.job-head{display:flex;justify-content:space-between}.meta{color:#667085;font-size:13px;margin-top:5px}.file-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:12px;margin-top:10px}.file-card{border:1px solid #e4e7ec;border-radius:11px;padding:9px;background:#fafafa}.file-card img{width:100%;height:145px;object-fit:contain;background:white;border-radius:8px;cursor:zoom-in}.file-name{font-size:13px;word-break:break-word;margin-top:7px}.file-meta{font-size:12px;color:#667085}.file-actions{margin-top:6px}.file-actions a{color:#4f46e5;text-decoration:none}.danger{border:0;border-radius:8px;padding:9px 12px;background:#b42318;color:#fff;cursor:pointer}.zip{margin-top:14px;padding:11px;border:1px dashed #d0d5dd}.empty{text-align:center;padding:40px;color:#667085}.modal{position:fixed;inset:0;background:#000b;display:none;align-items:center;justify-content:center;z-index:20}.modal.open{display:flex}.modal img{max-width:95vw;max-height:90vh;background:#fff}.modal button{position:absolute;right:20px;top:15px;border:0;border-radius:50%;width:42px;height:42px;font-size:24px}.hint{font-size:12px;color:#667085}@media(max-width:900px){.sidebar{width:210px}.main{margin-left:210px;width:calc(100% - 210px);padding:20px}.filters{grid-template-columns:1fr 1fr}}@media(max-width:650px){.layout{display:block}.sidebar{position:static;width:auto;padding:12px}.nav{display:flex;overflow:auto}.main{margin:0;width:auto}.filters{grid-template-columns:1fr}.job-head{display:block}}
+</style></head><body><div class="layout"><aside class="sidebar"><div class="brand"><span>文</span> Administration</div><nav class="nav"><a href="/admin">📊 Tableau de bord</a><a href="/admin/images" class="active">🖼️ Images</a><a href="/admin/config">⚙️ Configuration</a><a href="/">← Retour au traducteur</a><a href="/admin/logout">↪ Déconnexion</a></nav></aside><main class="main"><h1>Images</h1><p class="meta">Recherche par date, IP, taille en Ko et type d'image.</p>
+<div class="card"><div class="filters">
+<label>Date début<input id="from" type="date"></label><label>Date fin<input id="to" type="date"></label><label>IP<input id="ip" placeholder="ex. 192.168.1.10"></label><label>Taille min (Ko)<input id="min" type="number" min="0" step="1"></label><label>Taille max (Ko)<input id="max" type="number" min="0" step="1"></label><button class="btn" onclick="load()">Filtrer</button></div>
+<div class="subfilters"><button class="tab active" data-f="all">Tout</button><button class="tab" data-f="uploaded">Envoyées</button><button class="tab" data-f="translated">Traduites</button></div><p class="hint">La taille filtre la taille totale du dossier. Pour cibler une image précise, utilisez son aperçu et sa taille affichée.</p></div><div id="jobs"></div></main></div>
+<div id="modal" class="modal" onclick="closeModal(event)"><button onclick="closeModal(event)">×</button><img id="big"></div>
+<script>
+let all=[],kind="all";function esc(s){return String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]))}function fmt(ts){return new Date(ts*1000).toLocaleString("fr-FR")}function url(i,f){return "/api/admin/storage/file?work_id="+encodeURIComponent(i.id)+"&path="+encodeURIComponent(f.name)}function openImg(u){big.src=u;modal.classList.add("open")}function closeModal(e){if(e.target.id==="modal"||e.target.tagName==="BUTTON"){modal.classList.remove("open");big.src=""}}
+function render(){const from=fromEl.value?new Date(fromEl.value+"T00:00:00").getTime()/1000:-Infinity,to=toEl.value?new Date(toEl.value+"T23:59:59").getTime()/1000:Infinity,needle=ipEl.value.trim().toLowerCase(),mi=minEl.value?Number(minEl.value)*1024:0,ma=maxEl.value?Number(maxEl.value)*1024:Infinity;const items=all.filter(i=>i.created>=from&&i.created<=to&&(!needle||String(i.metadata?.client_ip||"").toLowerCase().includes(needle))&&i.size>=mi&&i.size<=ma);jobs.innerHTML=items.map(i=>{const ins=i.files.filter(f=>/^input_\d+\.(jpe?g|png|webp|tiff?)$/i.test(f.name)),outs=i.files.filter(f=>/^traduit\//i.test(f.name)&&/\.(jpe?g|png|webp|tiff?)$/i.test(f.name));const showIn=kind!=="translated",showOut=kind!=="uploaded";const card=f=>'<div class="file-card"><img src="'+url(i,f)+'&preview=1" onclick="openImg(\''+url(i,f)+'&preview=1\')" alt=""><div class="file-name">'+esc(f.name)+'</div><div class="file-meta">'+esc(f.size_human)+'</div><div class="file-actions"><a href="'+url(i,f)+'">Télécharger</a></div></div>';return '<div class="job"><div class="job-head"><div><b>'+esc(i.id)+'</b><div class="meta">'+fmt(i.created)+' · IP '+esc(i.metadata?.client_ip||"inconnue")+' · '+esc(i.size_human)+'</div></div><button class="danger" onclick="removeItem(\''+esc(i.id)+'\')">Supprimer</button></div>'+(showIn?'<div class="section"><h3>Images envoyées</h3><div class="file-grid">'+(ins.length?ins.map(card).join(""):"<div class=empty>Aucune</div>")+"</div></div>":"")+(showOut?'<div class="section"><h3>Images traduites</h3><div class="file-grid">'+(outs.length?outs.map(card).join(""):"<div class=empty>Aucune</div>")+"</div></div>":"")+'<div class="zip">'+(i.files.some(f=>/\.zip$/i.test(f.name))?'<a href="'+url(i,i.files.find(f=>/\.zip$/i.test(f.name)))+'">Télécharger le ZIP</a>':"Aucun ZIP")+"</div></div>"}).join("")||'<div class="empty">Aucun résultat avec ces filtres.</div>"}
+const fromEl=document.getElementById("from"),toEl=document.getElementById("to"),ipEl=document.getElementById("ip"),minEl=document.getElementById("min"),maxEl=document.getElementById("max"),jobs=document.getElementById("jobs"),modal=document.getElementById("modal"),big=document.getElementById("big");async function load(){const r=await fetch("/api/admin/storage");if(r.ok){all=(await r.json()).items;render()}}async function removeItem(id){if(!confirm("Supprimer définitivement ce dossier et toutes ses images ?"))return;await fetch("/api/admin/storage/"+encodeURIComponent(id),{method:"DELETE"});load()}document.querySelectorAll(".tab").forEach(b=>b.onclick=()=>{kind=b.dataset.f;document.querySelectorAll(".tab").forEach(x=>x.classList.toggle("active",x===b));render()});load();setInterval(load,10000);
+</script></main></div></body></html>"""
+
+CONFIG_ADMIN_PAGE = """<!doctype html><html lang="fr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Administration · Configuration</title><style>
+body{margin:0;font-family:Inter,system-ui,sans-serif;background:#f4f7fb;color:#172033}.layout{display:flex;min-height:100vh}.sidebar{width:250px;background:#111827;color:#fff;padding:24px 16px;position:fixed;inset:0 auto 0 0}.brand{font-size:20px;font-weight:800;padding:8px 10px 26px}.brand span{display:inline-grid;place-items:center;width:38px;height:38px;border-radius:11px;background:linear-gradient(135deg,#635bff,#8b5cf6);margin-right:9px;vertical-align:middle}.nav{display:grid;gap:6px}.nav a{color:#d1d5db;text-decoration:none;padding:12px;border-radius:10px;font-weight:650}.nav a:hover,.nav a.active{background:#ffffff14;color:#fff}.main{margin-left:250px;padding:32px;width:calc(100% - 250px);max-width:1100px}.card{background:#fff;border:1px solid #e4e7ec;border-radius:16px;padding:24px}.grid{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:20px}.grid label{font-size:13px;font-weight:700}.grid input{width:100%;margin-top:7px;padding:12px;border:1px solid #d0d5dd;border-radius:9px;box-sizing:border-box}.actions{grid-column:1/-1;display:flex;gap:12px;align-items:center}.save{border:0;border-radius:9px;padding:12px 16px;background:#635bff;color:#fff;font-weight:800;cursor:pointer}.msg{display:none;padding:11px;border-radius:9px;margin-top:15px}.msg.ok{display:block;background:#ecfdf3;color:#067647}.msg.err{display:block;background:#fef3f2;color:#b42318}@media(max-width:650px){.layout{display:block}.sidebar{position:static;width:auto;padding:12px}.nav{display:flex;overflow:auto}.main{margin:0;width:auto;padding:20px}.grid{grid-template-columns:1fr}.actions{grid-column:auto}}
+</style></head><body><div class="layout"><aside class="sidebar"><div class="brand"><span>文</span> Administration</div><nav class="nav"><a href="/admin">📊 Tableau de bord</a><a href="/admin/images">🖼️ Images</a><a href="/admin/config" class="active">⚙️ Configuration</a><a href="/">← Retour au traducteur</a><a href="/admin/logout">↪ Déconnexion</a></nav></aside><main class="main"><h1>Configuration</h1><p>Modification sécurisée du fichier <code>.env</code>.</p><div class="card"><div id="msg" class="msg"></div><form id="form" class="grid">
+<label>Clé Lara — Access Key ID<input name="LARA_ACCESS_KEY_ID" type="password" placeholder="Laisser vide pour conserver"></label><label>Clé Lara — Access Key Secret<input name="LARA_ACCESS_KEY_SECRET" type="password" placeholder="Laisser vide pour conserver"></label><label>Identifiant administrateur<input name="ADMIN_USERNAME"></label><label>Mot de passe administrateur<input name="ADMIN_PASSWORD" type="password" placeholder="Laisser vide pour conserver"></label><label>Secret de session<input name="ADMIN_SESSION_SECRET" type="password" placeholder="Laisser vide pour conserver"></label><label>Port du serveur<input name="PORT" type="number" min="1" max="65535"></label><div class="actions"><button class="save">💾 Enregistrer</button><span>Redémarre l'application après modification.</span></div></form></div></main></div><script>
+const form=document.getElementById("form"),msg=document.getElementById("msg");function show(t,e=false){msg.textContent=t;msg.className="msg "+(e?"err":"ok")}async function load(){const r=await fetch("/api/admin/env");const d=await r.json();if(!r.ok)return show(d.error,true);Object.entries(d.values).forEach(([k,v])=>{const e=form.elements[k];if(e)e.value=v==="••••••••"?"":v})}form.onsubmit=async e=>{e.preventDefault();const data=Object.fromEntries(new FormData(form));const r=await fetch("/api/admin/env",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(data)});const d=await r.json();show(d.message||d.error,!r.ok)};load();
+</script></main></div></body></html>"""
 
 def set_job(job_id, **values):
     with LOCK:
         JOBS.setdefault(job_id, {}).update(values)
 
 
-def worker(job_id, files, source, target):
+def worker(job_id, files, source, target, client_ip):
     work = Path(tempfile.mkdtemp(prefix="traducteur_"))
     out = work / "traduit"
     out.mkdir()
@@ -432,6 +392,7 @@ def worker(job_id, files, source, target):
                 "created_at": time.time(),
                 "source": source,
                 "target": target,
+                "client_ip": client_ip,
                 "image_count": total,
             }, ensure_ascii=False, indent=2), encoding="utf-8")
         except OSError:
@@ -564,6 +525,22 @@ def admin():
     return ADMIN_PAGE
 
 
+@app.get("/admin/images")
+def admin_images():
+    auth = require_admin_page()
+    if auth:
+        return auth
+    return IMAGES_ADMIN_PAGE
+
+
+@app.get("/admin/config")
+def admin_config():
+    auth = require_admin_page()
+    if auth:
+        return auth
+    return CONFIG_ADMIN_PAGE
+
+
 @app.route("/api/admin/env", methods=["GET", "POST"])
 def admin_env():
     auth = require_admin_api()
@@ -683,7 +660,7 @@ def translate():
         "files": [str(item["name"]) for item in items],
     }
     set_job(job, state="running", message="Démarrage…", **metadata)
-    threading.Thread(target=worker, args=(job, items, source, target), daemon=True).start()
+    threading.Thread(target=worker, args=(job, items, source, target, client_ip), daemon=True).start()
     return jsonify(job=job)
 
 
