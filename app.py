@@ -352,7 +352,7 @@ const start=document.getElementById("start"), files=document.getElementById("fil
 const source=document.getElementById("source"), lang=document.getElementById("lang"), status=document.getElementById("status"), download=document.getElementById("download");
 const usageImages=document.getElementById("usageImages"), usageCost=document.getElementById("usageCost"), usagePrice=document.getElementById("usagePrice");
 function setStatus(t,c=""){status.textContent=t;status.className="status "+c}
-async function refreshUsage(){try{const u=await fetch("/api/lara-usage").then(r=>r.json());usageImages.textContent=u.images+" image"+(u.images>1?"s":"");usageCost.textContent=u.estimated_cost_eur.toFixed(2).replace(".",",")+" €";usagePrice.textContent=u.price_eur_per_image.toFixed(2).replace(".",",")+" €/image"}catch(e){}}
+async function refreshUsage(){try{const r=await fetch("/api/lara-usage");const raw=await r.text();let u;try{u=JSON.parse(raw)}catch(e){throw new Error("Réponse invalide du serveur pour l'utilisation Lara (HTTP "+r.status+").")}if(!r.ok)throw new Error(u.error||"Impossible de charger l'utilisation Lara.");usageImages.textContent=u.images+" image"+(u.images>1?"s":"");usageCost.textContent=Number(u.estimated_cost_eur||0).toFixed(2).replace(".",",")+" €";usagePrice.textContent=Number(u.price_eur_per_image||0).toFixed(2).replace(".",",")+" €/image"}catch(e){usageImages.textContent="—";usageCost.textContent="—";usagePrice.textContent="—";}}
 files.addEventListener("change",()=>{const n=[...files.files].filter(f=>/\\.(jpe?g|png|webp|tiff?)$/i.test(f.name)).length; if(n)setStatus(n+" image"+(n>1?"s":"")+" sélectionnée"+(n>1?"s":"")+" — prête à être traduite.")});
 refreshUsage();
 start.onclick=async()=>{
