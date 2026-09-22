@@ -119,7 +119,7 @@ def update_env_values(updates):
                     found.add(key)
                 elif key in ENV_SECRET_KEYS:
                     found.add(key)
-                    continue
+                    # Champ vide dans l'interface = conserver la valeur secrète actuelle.
                 else:
                     line = f'{key}=""'
                     found.add(key)
