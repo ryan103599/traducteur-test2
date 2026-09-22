@@ -442,12 +442,13 @@ def set_job(job_id, **values):
 
 
 def worker(job_id, files, source, target, client_ip):
-    # Une traduction entière reste rattachée à la clé utilisée au démarrage,
-    # même si une autre clé est activée dans l'administration pendant le traitement.
+    # Une traduction entière reste rattachée à la clé utilisée au démarrage.
     usage_key_id = os.getenv("LARA_ACCESS_KEY_ID", "").strip()
     work = Path(tempfile.mkdtemp(prefix="traducteur_"))
     out = work / "traduit"
+    pending = work / "a_traduire"
     out.mkdir()
+    pending.mkdir()
     try:
         total = len(files)
         metadata_path = work / "metadata.json"
@@ -462,10 +463,12 @@ def worker(job_id, files, source, target, client_ip):
             }, ensure_ascii=False, indent=2), encoding="utf-8")
         except OSError:
             pass
+
         results = []
         billed_images = 0
-        quota_exceeded = False
-        quota_message = ""
+        interrupted_at = None
+        interruption_reason = ""
+
         for i, item in enumerate(files, 1):
             src = work / f"input_{i}{Path(item['name']).suffix.lower()}"
             src.write_bytes(item["data"])
@@ -486,21 +489,26 @@ def worker(job_id, files, source, target, client_ip):
                     "(HTTP 429)" in error_text
                     or "HTTP 429" in error_text
                     or "exceeded your \"api_translation_chars\" quota" in error_text
-                    or "quota" in error_text.lower() and "429" in error_text
+                    or ("quota" in error_text.lower() and "429" in error_text)
                 )
                 if quota_exceeded:
-                    quota_message = "Quota Lara dépassé : les images déjà traitées seront disponibles dans le ZIP."
+                    interrupted_at = i
+                    interruption_reason = f"Quota Lara dépassé après {len(results)} image(s) traitée(s)."
                     set_job(job_id, message=f"Image {i}/{total} : quota Lara dépassé, arrêt du traitement…")
                     break
                 if not no_text:
+                    interrupted_at = i
+                    interruption_reason = f"Traitement interrompu : {type(exc).__name__}: {exc}"
                     raise
                 shutil.copy2(src, dest)
                 used_lara = False
                 set_job(job_id, message=f"Image {i}/{total} : aucun texte détecté, image conservée")
+
             if used_lara:
                 record_image(usage_key_id)
                 billed_images += 1
             results.append(dest)
+
             if used_lara:
                 set_job(job_id, message=f"Image {i}/{total} terminée")
             elif no_text:
@@ -510,27 +518,70 @@ def worker(job_id, files, source, target, client_ip):
         set_job(job_id, message="Création du ZIP…")
         with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_DEFLATED) as z:
             for path in results:
-                z.write(path, path.name)
+                if Path(path).is_file():
+                    z.write(path, path.name)
 
-        skipped = total - billed_images
-        if quota_exceeded:
-            processed = len(results)
-            message = f"Quota Lara dépassé après {processed} image(s) traitée(s)."
-            if processed:
-                message += " Le ZIP des images déjà traitées est disponible."
+        incomplete = interrupted_at is not None
+        untranslated_zip = None
+
+        if incomplete:
+            # Toute image qui n'a pas encore été traitée est conservée dans un
+            # second dossier puis dans un second ZIP. Cela inclut l'image sur
+            # laquelle l'erreur est survenue.
+            for i, item in enumerate(files, 1):
+                if i < interrupted_at:
+                    continue
+                name = secure_filename(Path(item["name"]).name) or f"image_{i}.png"
+                destination = pending / name
+                if destination.exists():
+                    stem = destination.stem
+                    suffix = destination.suffix
+                    destination = pending / f"{stem}_{i}{suffix}"
+                try:
+                    destination.write_bytes(item["data"])
+                except OSError:
+                    pass
+
+            untranslated_zip_path = work / "images_a_traduire.zip"
+            with zipfile.ZipFile(untranslated_zip_path, "w", zipfile.ZIP_DEFLATED) as z:
+                for path in pending.iterdir():
+                    if path.is_file():
+                        z.write(path, path.name)
+            untranslated_zip = str(untranslated_zip_path)
+
+            translated_count = len(results)
+            pending_count = len(list(pending.iterdir()))
+            message = interruption_reason
+            if translated_count:
+                message += f" ZIP traduit disponible ({translated_count} image(s))."
             else:
-                message += " Aucune image n'a pu être traduite."
-            set_job(job_id, state="done", message=message, zip=str(zip_path), quota_exceeded=True)
-        elif skipped:
-            message = f"{total} image(s) traitée(s), dont {skipped} sans texte détecté."
-            if billed_images:
-                message += f" {billed_images} appel(s) Lara."
-            set_job(job_id, state="done", message=message, zip=str(zip_path))
+                message += " Aucune image traduite disponible."
+            if pending_count:
+                message += f" ZIP à traduire disponible ({pending_count} image(s) restante(s))."
+
+            set_job(
+                job_id,
+                state="done",
+                message=message,
+                zip=str(zip_path),
+                untranslated_zip=untranslated_zip,
+                incomplete=True,
+            )
         else:
-            message = f"{total} image(s) traduite(s)."
-            set_job(job_id, state="done", message=message, zip=str(zip_path))
+            skipped = total - billed_images
+            if skipped:
+                message = f"{total} image(s) traitée(s), dont {skipped} sans texte détecté."
+                if billed_images:
+                    message += f" {billed_images} appel(s) Lara."
+                set_job(job_id, state="done", message=message, zip=str(zip_path))
+            else:
+                message = f"{total} image(s) traduite(s)."
+                set_job(job_id, state="done", message=message, zip=str(zip_path))
+
     except Exception as exc:
-        # Même en cas d'erreur inattendue, créer un ZIP avec tout ce qui a déjà été produit.
+        # Même en cas d'erreur inattendue, produire les deux ZIP :
+        # 1) les images déjà traduites ;
+        # 2) l'image en échec + toutes les suivantes.
         try:
             zip_path = work / "images_traduites.zip"
             existing_results = [p for p in results if Path(p).is_file()] if "results" in locals() else []
@@ -538,15 +589,46 @@ def worker(job_id, files, source, target, client_ip):
                 with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_DEFLATED) as z:
                     for path in existing_results:
                         z.write(path, path.name)
+
+            if interrupted_at is None:
+                interrupted_at = min(len(existing_results) + 1, total) if total else 1
+
+            for i, item in enumerate(files, 1):
+                if i < interrupted_at:
+                    continue
+                name = secure_filename(Path(item["name"]).name) or f"image_{i}.png"
+                destination = pending / name
+                if destination.exists():
+                    destination = pending / f"{destination.stem}_{i}{destination.suffix}"
+                try:
+                    destination.write_bytes(item["data"])
+                except OSError:
+                    pass
+
+            untranslated_zip_path = work / "images_a_traduire.zip"
+            with zipfile.ZipFile(untranslated_zip_path, "w", zipfile.ZIP_DEFLATED) as z:
+                for path in pending.iterdir():
+                    if path.is_file():
+                        z.write(path, path.name)
+
             count = len(existing_results)
+            pending_count = len(list(pending.iterdir()))
             message = f"Traitement interrompu : {type(exc).__name__}: {exc}"
             if count:
-                message += f" Le ZIP incomplet contenant {count} image(s) déjà traitée(s) est disponible."
-            else:
-                message += " Aucun fichier traduit n'est disponible dans le ZIP."
-            set_job(job_id, state="done", message=message, zip=str(zip_path), incomplete=True)
+                message += f" ZIP traduit disponible ({count} image(s))."
+            if pending_count:
+                message += f" ZIP à traduire disponible ({pending_count} image(s) restante(s))."
+
+            set_job(
+                job_id,
+                state="done",
+                message=message,
+                zip=str(zip_path),
+                untranslated_zip=str(untranslated_zip_path),
+                incomplete=True,
+            )
         except Exception as zip_exc:
-            set_job(job_id, state="error", message=f"❌ {type(exc).__name__}: {exc} (création du ZIP impossible : {zip_exc})")
+            set_job(job_id, state="error", message=f"❌ {type(exc).__name__}: {exc} (création des ZIP impossible : {zip_exc})")
     finally:
         set_job(job_id, work=str(work))
 
@@ -891,6 +973,16 @@ def download(job_id):
     if not path or not Path(path).exists():
         return "Fichier indisponible", 404
     return send_file(path, as_attachment=True, download_name="images_traduites.zip")
+
+
+@app.get("/download/<job_id>/a-traduire")
+def download_untranslated(job_id):
+    with LOCK:
+        data = dict(JOBS.get(job_id, {}))
+    path = data.get("untranslated_zip")
+    if not path or not Path(path).exists():
+        return "Fichier indisponible", 404
+    return send_file(path, as_attachment=True, download_name="images_a_traduire.zip")
 
 
 if __name__ == "__main__":
