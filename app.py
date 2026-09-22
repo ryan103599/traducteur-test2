@@ -498,7 +498,30 @@ body{margin:0;font-family:Inter,system-ui,sans-serif;background:#f4f7fb;color:#1
 <div id="modal" class="modal" onclick="closeModal(event)"><button onclick="closeModal(event)">×</button><img id="big"></div>
 <script>
 let all=[],kind="all";function esc(s){return String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]))}function fmt(ts){return new Date(ts*1000).toLocaleString("fr-FR")}function url(i,f){return "/api/admin/storage/file?work_id="+encodeURIComponent(i.id)+"&path="+encodeURIComponent(f.name)}function openImg(u){big.src=u;modal.classList.add("open")}function closeModal(e){if(e.target.id==="modal"||e.target.tagName==="BUTTON"){modal.classList.remove("open");big.src=""}}
-function render(){const from=fromEl.value?new Date(fromEl.value+"T00:00:00").getTime()/1000:-Infinity,to=toEl.value?new Date(toEl.value+"T23:59:59").getTime()/1000:Infinity,needle=ipEl.value.trim().toLowerCase(),mi=minEl.value?Number(minEl.value)*1024:0,ma=maxEl.value?Number(maxEl.value)*1024:Infinity;const items=all.filter(i=>i.created>=from&&i.created<=to&&(!needle||String(i.metadata?.client_ip||"").toLowerCase().includes(needle))&&i.size>=mi&&i.size<=ma);jobs.innerHTML=items.map(i=>{const ins=i.files.filter(f=>/^input_\d+\.(jpe?g|png|webp|tiff?)$/i.test(f.name)),outs=i.files.filter(f=>/^traduit\//i.test(f.name)&&/\.(jpe?g|png|webp|tiff?)$/i.test(f.name));const showIn=kind!=="translated",showOut=kind!=="uploaded";const card=f=>'<div class="file-card"><img src="'+url(i,f)+'&preview=1" onclick="openImg(\''+url(i,f)+'&preview=1\')" alt=""><div class="file-name">'+esc(f.name)+'</div><div class="file-meta">'+esc(f.size_human)+'</div><div class="file-actions"><a href="'+url(i,f)+'">Télécharger</a></div></div>';return '<div class="job"><div class="job-head"><div><b>'+esc(i.id)+'</b><div class="meta">'+fmt(i.created)+' · IP '+esc(i.metadata?.client_ip||"inconnue")+' · '+esc(i.size_human)+'</div></div><button class="danger" onclick="removeItem(\''+esc(i.id)+'\')">Supprimer</button></div>'+(showIn?'<div class="section"><h3>Images envoyées</h3><div class="file-grid">'+(ins.length?ins.map(card).join(""):"<div class=empty>Aucune</div>")+"</div></div>":"")+(showOut?'<div class="section"><h3>Images traduites</h3><div class="file-grid">'+(outs.length?outs.map(card).join(""):"<div class=empty>Aucune</div>")+"</div></div>":"")+'<div class="zip">'+(i.files.some(f=>/\\.zip$/i.test(f.name))?'<a href="'+url(i,i.files.find(f=>/\.zip$/i.test(f.name)))+'">Télécharger le ZIP</a>':"Aucun ZIP")+"</div></div>"}).join("")||'<div class="empty">Aucun résultat avec ces filtres.</div>"}
+let all=[],kind="all";
+function esc(s){return String(s ?? "").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]))}
+function fmt(ts){return new Date(ts*1000).toLocaleString("fr-FR")}
+function url(i,f){return "/api/admin/storage/file?work_id="+encodeURIComponent(i.id)+"&path="+encodeURIComponent(f.name)}
+function openImg(u){big.src=u;modal.classList.add("open")}
+function closeModal(e){if(e.target.id==="modal"||e.target.tagName==="BUTTON"){modal.classList.remove("open");big.src=""}}
+function render(){
+ const from=fromEl.value?new Date(fromEl.value+"T00:00:00").getTime()/1000:-Infinity;
+ const to=toEl.value?new Date(toEl.value+"T23:59:59").getTime()/1000:Infinity;
+ const needle=ipEl.value.trim().toLowerCase();
+ const mi=minEl.value?Number(minEl.value)*1024:0;
+ const ma=maxEl.value?Number(maxEl.value)*1024:Infinity;
+ const items=all.filter(i=>i.created>=from&&i.created<=to&&(!needle||String(i.metadata?.client_ip||"").toLowerCase().includes(needle))&&i.size>=mi&&i.size<=ma);
+ jobs.innerHTML=items.map(i=>{
+   const ins=i.files.filter(f=>/^input_\d+\.(jpe?g|png|webp|tiff?)$/i.test(f.name));
+   const outs=i.files.filter(f=>/^traduit\//i.test(f.name)&&/\.(jpe?g|png|webp|tiff?)$/i.test(f.name));
+   const showIn=kind!=="translated",showOut=kind!=="uploaded";
+   const card=f=>'<div class="file-card"><img src="'+url(i,f)+'&preview=1" onclick="openImg(\\''+url(i,f)+'&preview=1\\')" alt=""><div class="file-name">'+esc(f.name)+'</div><div class="file-meta">'+esc(f.size_human)+'</div><div class="file-actions"><a href="'+url(i,f)+'">Télécharger</a></div></div>';
+   return '<div class="job"><div class="job-head"><div><b>'+esc(i.id)+'</b><div class="meta">'+fmt(i.created)+' · IP '+esc(i.metadata?.client_ip||"inconnue")+' · '+esc(i.size_human)+'</div></div><button class="danger" onclick="removeItem(\\''+esc(i.id)+'\\')">Supprimer</button></div>'+
+     (showIn?'<div class="section"><h3>Images envoyées</h3><div class="file-grid">'+(ins.length?ins.map(card).join(""):"<div class=empty>Aucune</div>")+'</div></div>':"")+
+     (showOut?'<div class="section"><h3>Images traduites</h3><div class="file-grid">'+(outs.length?outs.map(card).join(""):"<div class=empty>Aucune</div>")+'</div></div>':"")+
+     '<div class="zip">'+(i.files.some(f=>/\.zip$/i.test(f.name))?'<a href="'+url(i,i.files.find(f=>/\.zip$/i.test(f.name)))+'">Télécharger le ZIP</a>':"Aucun ZIP")+"</div></div>";
+ }).join("")||'<div class="empty">Aucun résultat avec ces filtres.</div>';
+}
 const fromEl=document.getElementById("from"),toEl=document.getElementById("to"),ipEl=document.getElementById("ip"),minEl=document.getElementById("min"),maxEl=document.getElementById("max"),jobs=document.getElementById("jobs"),modal=document.getElementById("modal"),big=document.getElementById("big");async function load(){
  const requested=new URLSearchParams(location.search).get("work_id");
  const endpoint=requested?"/api/admin/storage/"+encodeURIComponent(requested):"/api/admin/storage";
