@@ -49,3 +49,26 @@ Les identifiants Lara sont lus uniquement depuis les variables d'environnement :
 - `LARA_ACCESS_KEY_SECRET`
 
 Ne les committe jamais dans le dépôt GitHub.
+## Changer le port du serveur
+
+Le port utilisé par le site peut être modifié facilement dans le fichier local **.env**.
+
+Ajoute ou modifie :
+
+```env
+PORT=8686
+```
+
+Par exemple, pour utiliser le port 9000 :
+
+```env
+PORT=9000
+```
+
+Puis redémarre l'application avec :
+
+```bash
+bash run.sh
+```
+
+Le fichier **.env** reste local et n'est pas envoyé sur GitHub.
