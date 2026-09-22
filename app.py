@@ -132,99 +132,107 @@ PAGE = """<!doctype html>
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Traducteur d'images</title>
+<title>Traducteur d'images · Lara</title>
 <style>
-body{font-family:system-ui,-apple-system,Segoe UI,sans-serif;max-width:900px;margin:40px auto;padding:0 20px;background:#f5f7fb;color:#18202a}
-.card{background:white;border-radius:18px;padding:28px;box-shadow:0 8px 30px #00000012}
-h1{margin-top:0}.muted{color:#667085}
-label{display:block;font-weight:600;margin:18px 0 8px}
-select,input[type=file],button{width:100%;box-sizing:border-box;padding:12px;border:1px solid #d0d5dd;border-radius:10px;background:white}
-button{margin-top:20px;background:#111827;color:white;border:0;cursor:pointer;font-weight:700}
-button:disabled{opacity:.5;cursor:not-allowed}
-#status{margin-top:20px;padding:14px;border-radius:10px;background:#f2f4f7;white-space:pre-wrap}
-#download{display:none;margin-top:18px}.ok{background:#ecfdf3!important;color:#067647}
-.err{background:#fef3f2!important;color:#b42318}
-small{display:block;margin-top:8px;color:#667085}
-.usage-row{display:flex;gap:20px;flex-wrap:wrap;margin-top:10px}
-.usage-item{min-width:190px}.usage-value{font-size:1.35rem;font-weight:700}
+:root{--bg:#f4f7fb;--card:#fff;--text:#172033;--muted:#667085;--line:#e4e7ec;--primary:#635bff;--primary-dark:#5147e5;--success:#12b76a;--danger:#d92d20}
+*{box-sizing:border-box}
+body{margin:0;min-height:100vh;font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;color:var(--text);background:radial-gradient(circle at 10% 0%,#e9e7ff 0,transparent 32%),radial-gradient(circle at 90% 10%,#dff7ef 0,transparent 28%),var(--bg)}
+.container{max-width:980px;margin:0 auto;padding:42px 20px 50px}
+.header{text-align:center;margin-bottom:26px}
+.logo{width:58px;height:58px;margin:0 auto 14px;border-radius:18px;display:grid;place-items:center;background:linear-gradient(135deg,var(--primary),#8b5cf6);color:white;font-size:28px;box-shadow:0 12px 28px #635bff35}
+h1{font-size:clamp(2rem,5vw,3rem);letter-spacing:-.04em;margin:0 0 8px}
+.subtitle{margin:0;color:var(--muted);font-size:1.05rem}
+.card{background:rgba(255,255,255,.94);border:1px solid #ffffffaa;border-radius:24px;padding:30px;box-shadow:0 20px 60px #10182812;backdrop-filter:blur(12px)}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:18px}
+.field label{display:block;font-size:.9rem;font-weight:700;margin:0 0 8px}
+select,input[type=file]{width:100%;padding:13px 14px;border:1px solid #d0d5dd;border-radius:12px;background:white;color:var(--text);font:inherit;outline:none;transition:.2s}
+select:focus,input[type=file]:focus{border-color:var(--primary);box-shadow:0 0 0 4px #635bff18}
+.upload{margin-top:20px;border:2px dashed #c7c9d9;border-radius:16px;padding:24px;background:#fafbff;text-align:center;transition:.2s}
+.upload:hover{border-color:var(--primary);background:#f8f7ff}
+.upload strong{display:block;font-size:1rem;margin-bottom:5px}
+.upload small{margin:0;color:var(--muted)}
+input[type=file]{margin-top:14px}
+small{display:block;margin-top:8px;color:var(--muted);line-height:1.5}
+.primary{width:100%;margin-top:20px;padding:14px 18px;border:0;border-radius:12px;background:linear-gradient(135deg,var(--primary),#7c3aed);color:white;cursor:pointer;font:inherit;font-weight:800;font-size:1rem;box-shadow:0 10px 22px #635bff30;transition:.2s}
+.primary:hover{transform:translateY(-1px);background:linear-gradient(135deg,var(--primary-dark),#6d28d9)}
+.primary:disabled{opacity:.55;cursor:not-allowed;transform:none}
+.status{margin-top:22px;padding:15px 16px;border-radius:12px;background:#f2f4f7;color:#475467;white-space:pre-wrap;min-height:50px;display:flex;align-items:center}
+.status.ok{background:#ecfdf3!important;color:#067647}
+.status.err{background:#fef3f2!important;color:#b42318}
+.download{display:block;text-align:center;margin-top:14px;padding:13px 16px;border-radius:12px;background:#111827;color:white;text-decoration:none;font-weight:700}
+.usage{margin-top:22px;border:1px solid var(--line);border-radius:16px;padding:20px;background:#fcfcfd}
+.usage-title{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:14px}
+.usage-title strong{font-size:1rem}
+.badge{padding:6px 9px;border-radius:999px;background:#eef4ff;color:#3538cd;font-size:.78rem;font-weight:700}
+.usage-row{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+.usage-item{padding:13px;border-radius:12px;background:white;border:1px solid var(--line);color:var(--muted);font-size:.82rem}
+.usage-value{margin-top:5px;color:var(--text);font-size:1.15rem;font-weight:800}
+.usage a{color:#4f46e5;font-weight:600;text-decoration:none}
+.footer{display:flex;justify-content:center;gap:18px;margin-top:22px;font-size:.9rem}
+.footer a{color:var(--muted);text-decoration:none}.footer a:hover{color:var(--primary)}
+@media(max-width:700px){.container{padding-top:25px}.card{padding:20px;border-radius:20px}.grid,.usage-row{grid-template-columns:1fr}.header{margin-bottom:20px}}
 </style>
 </head>
 <body>
-<div class="card">
+<div class="container">
+<header class="header">
+<div class="logo">文</div>
 <h1>Traducteur d'images</h1>
-<p class="muted">Traduction directe des images avec Lara Translate.</p>
-<label>Langue source</label>
-<select id="source">
+<p class="subtitle">Traduisez vos images simplement avec Lara Translate.</p>
+</header>
+<div class="card">
+<div class="grid">
+<div class="field"><label for="source">Langue source</label><select id="source">
 <option value="auto">Détection automatique</option>
 {% for code,name in source_languages.items() %}<option value="{{code}}">{{name}}</option>{% endfor %}
-</select>
-<label>Langue cible</label>
-<select id="lang">
+</select></div>
+<div class="field"><label for="lang">Langue cible</label><select id="lang">
 {% for code,name in languages.items() %}<option value="{{code}}">{{name}}</option>{% endfor %}
-</select>
-<label>Images</label>
+</select></div>
+</div>
+<div class="upload">
+<strong>📁 Choisissez votre dossier d'images</strong>
+<small>JPG, JPEG, PNG, WebP et TIFF</small>
 <input id="files" type="file" webkitdirectory directory multiple accept=".jpg,.jpeg,.png,.webp,.tif,.tiff">
-<small>Choisis un dossier. Les images sont envoyées directement à Lara, qui renvoie l’image déjà traduite.</small>
-<button id="start">Traduire le dossier</button>
+<small>Les images sont envoyées à Lara et les versions traduites sont regroupées dans un ZIP.</small>
+</div>
+<button id="start" class="primary">✨ Traduire le dossier</button>
+<div id="status" class="status">En attente d'un dossier.</div>
+<a id="download" class="download" href="#" download style="display:none">Télécharger le ZIP</a>
 
-<div id="quota" style="margin-top:18px;padding:14px;border:1px solid #d0d5dd;border-radius:10px;background:#fafafa">
-<strong>Utilisation Lara — ce mois</strong>
+<div id="quota" class="usage">
+<div class="usage-title"><strong>Utilisation Lara — ce mois</strong><span class="badge">Suivi local</span></div>
 <div class="usage-row">
-  <div class="usage-item">Images traduites<div id="usageImages" class="usage-value">—</div></div>
-  <div class="usage-item">Coût estimé<div id="usageCost" class="usage-value">—</div></div>
-  <div class="usage-item">Tarif<div id="usagePrice" class="usage-value">—</div></div>
+<div class="usage-item">Images traduites<div id="usageImages" class="usage-value">—</div></div>
+<div class="usage-item">Coût estimé<div id="usageCost" class="usage-value">—</div></div>
+<div class="usage-item">Tarif<div id="usagePrice" class="usage-value">—</div></div>
 </div>
-<small>Compteur local basé sur les traductions d’images réussies via Lara. L’estimation utilise le tarif Inpainting de l’application ; elle ne remplace pas le solde officiel Lara.</small>
-<a href="https://laratranslate.com/account/api" target="_blank" rel="noopener">Voir l’utilisation officielle Lara →</a>
+<small>Compteur local basé sur les traductions réussies via Lara. L'estimation utilise le tarif configuré dans l'application.</small>
+<a href="https://laratranslate.com/account/api" target="_blank" rel="noopener">Voir l'utilisation officielle Lara →</a>
 </div>
-
-<div id="status">En attente.</div>
-<a id="download" href="#" download>Télécharger le ZIP</a>
-<p style="margin-top:24px"><a href="/admin">Administration du stockage →</a></p>
+</div>
+<footer class="footer"><a href="/admin">Administration du stockage</a></footer>
 </div>
 <script>
 const start=document.getElementById("start"), files=document.getElementById("files");
 const source=document.getElementById("source"), lang=document.getElementById("lang"), status=document.getElementById("status"), download=document.getElementById("download");
 const usageImages=document.getElementById("usageImages"), usageCost=document.getElementById("usageCost"), usagePrice=document.getElementById("usagePrice");
-
-function setStatus(t,c=""){status.textContent=t;status.className=c}
-
-async function refreshUsage(){
-  try{
-    const u=await fetch("/api/lara-usage").then(r=>r.json());
-    usageImages.textContent=u.images+" image"+(u.images>1?"s":"");
-    usageCost.textContent=u.estimated_cost_eur.toFixed(2).replace(".",",")+" €";
-    usagePrice.textContent=u.price_eur_per_image.toFixed(2).replace(".",",")+" €/image";
-  }catch(e){}
-}
+function setStatus(t,c=""){status.textContent=t;status.className="status "+c}
+async function refreshUsage(){try{const u=await fetch("/api/lara-usage").then(r=>r.json());usageImages.textContent=u.images+" image"+(u.images>1?"s":"");usageCost.textContent=u.estimated_cost_eur.toFixed(2).replace(".",",")+" €";usagePrice.textContent=u.price_eur_per_image.toFixed(2).replace(".",",")+" €/image"}catch(e){}}
+files.addEventListener("change",()=>{const n=[...files.files].filter(f=>/\.(jpe?g|png|webp|tiff?)$/i.test(f.name)).length; if(n)setStatus(n+" image"+(n>1?"s":"")+" sélectionnée"+(n>1?"s":"")+" — prête à être traduite.")});
 refreshUsage();
-
 start.onclick=async()=>{
  const selected=[...files.files].filter(f=>/\.(jpe?g|png|webp|tiff?)$/i.test(f.name));
  if(!selected.length){setStatus("Choisis un dossier contenant des images.","err");return}
- start.disabled=true; download.style.display="none"; setStatus("Envoi des images…");
- const fd=new FormData(); fd.append("source",source.value); fd.append("target",lang.value);
- selected.forEach(f=>fd.append("files",f,f.webkitRelativePath||f.name));
- try{
-   const r=await fetch("/translate",{method:"POST",body:fd});
-   const data=await r.json(); if(!r.ok) throw new Error(data.error||"Erreur");
-   while(true){
-     await new Promise(x=>setTimeout(x,700));
-     const s=await fetch("/status/"+data.job).then(x=>x.json());
-     setStatus(s.message||"Traitement…");
-     if(s.state==="done"){
-       download.href="/download/"+data.job; download.style.display="block"; download.textContent="Télécharger le ZIP";
-       setStatus(s.message,"ok"); await refreshUsage(); break;
-     }
-     if(s.state==="error"){setStatus(s.message||"Erreur","err"); await refreshUsage(); break}
-   }
- }catch(e){setStatus(e.message||"Erreur","err")}
- finally{start.disabled=false}
+ start.disabled=true;download.style.display="none";setStatus("Envoi des images…");
+ const fd=new FormData();fd.append("source",source.value);fd.append("target",lang.value);selected.forEach(f=>fd.append("files",f,f.webkitRelativePath||f.name));
+ try{const r=await fetch("/translate",{method:"POST",body:fd});const data=await r.json();if(!r.ok)throw new Error(data.error||"Erreur");
+ while(true){await new Promise(x=>setTimeout(x,700));const s=await fetch("/status/"+data.job).then(x=>x.json());setStatus(s.message||"Traitement…");if(s.state==="done"){download.href="/download/"+data.job;download.style.display="block";download.textContent="⬇ Télécharger le ZIP";setStatus(s.message,"ok");await refreshUsage();break}if(s.state==="error"){setStatus(s.message||"Erreur","err");await refreshUsage();break}}
+ }catch(e){setStatus(e.message||"Erreur","err")}finally{start.disabled=false}
 };
 </script>
 </body>
 </html>"""
-
 
 
 LOGIN_PAGE = """<!doctype html>
