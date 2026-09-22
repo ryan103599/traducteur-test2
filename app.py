@@ -833,7 +833,11 @@ def admin_download_storage_file():
 
 @app.get("/api/lara-usage")
 def lara_usage():
-    return jsonify(get_usage(os.getenv("LARA_ACCESS_KEY_ID", "").strip()))
+    try:
+        return jsonify(get_usage(os.getenv("LARA_ACCESS_KEY_ID", "").strip()))
+    except Exception as exc:
+        app.logger.exception("Erreur lors du chargement de l'utilisation Lara")
+        return jsonify(error=f"Impossible de charger l'utilisation Lara : {type(exc).__name__}: {exc}"), 500
 
 
 @app.post("/translate")
