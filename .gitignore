@@ -3,3 +3,5 @@
 __pycache__/
 *.pyc
 .lara_key_profiles.json
+storage/
+restart.log
