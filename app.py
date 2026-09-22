@@ -26,6 +26,8 @@ LOCK = threading.Lock()
 RETENTION_SECONDS = 2 * 24 * 60 * 60
 CLEANUP_INTERVAL_SECONDS = 60 * 60
 TEMP_PREFIX = "traducteur_"
+STORAGE_PATH = Path(__file__).resolve().parent / "storage"
+STORAGE_PATH.mkdir(parents=True, exist_ok=True)
 ALLOWED = {".jpg", ".jpeg", ".png", ".webp", ".tif", ".tiff"}
 
 LANGUAGES = {
@@ -212,53 +214,98 @@ def format_size(size):
         value /= 1024
 
 
-def list_stored_files():
-    now = time.time()
-    temp_root = Path(tempfile.gettempdir())
-    items = []
-    for work in temp_root.glob(f"{TEMP_PREFIX}*"):
+def storage_roots():
+    """Retourne le stockage persistant et l'ancien stockage temporaire."""
+    roots = [STORAGE_PATH, Path(tempfile.gettempdir())]
+    unique = []
+    for root in roots:
         try:
-            if not work.is_dir():
-                continue
-            created = work.stat().st_mtime
-            expires = created + RETENTION_SECONDS
-            metadata = {}
-            metadata_path = work / "metadata.json"
-            try:
-                if metadata_path.is_file():
-                    metadata = json.loads(metadata_path.read_text(encoding="utf-8"))
-            except (OSError, ValueError, TypeError):
-                metadata = {}
-            files = []
-            total_size = 0
-            for path in work.rglob("*"):
-                if path.is_file():
-                    size = path.stat().st_size
-                    total_size += size
-                    files.append({"name": str(path.relative_to(work)), "size": size, "size_human": format_size(size)})
-            items.append({"id": work.name, "created": created, "expires": expires, "expires_in": max(0, int(expires - now)), "size": total_size, "size_human": format_size(total_size), "files": files, "metadata": metadata})
+            root = root.resolve()
+        except OSError:
+            pass
+        if root not in unique:
+            unique.append(root)
+    return unique
+
+
+def find_storage_work(work_id):
+    if not work_id or "/" in work_id or "\\" in work_id or not work_id.startswith(TEMP_PREFIX):
+        return None
+    for root in storage_roots():
+        work = root / work_id
+        try:
+            if work.is_dir():
+                return work
         except OSError:
             continue
+    return None
+
+
+def list_stored_files():
+    now = time.time()
+    items = []
+    seen = set()
+    for root in storage_roots():
+        try:
+            works = root.glob(f"{TEMP_PREFIX}*")
+        except OSError:
+            continue
+        for work in works:
+            try:
+                work_key = str(work.resolve())
+                if work_key in seen or not work.is_dir():
+                    continue
+                seen.add(work_key)
+                created = work.stat().st_mtime
+                expires = created + RETENTION_SECONDS
+                metadata = {}
+                metadata_path = work / "metadata.json"
+                try:
+                    if metadata_path.is_file():
+                        metadata = json.loads(metadata_path.read_text(encoding="utf-8"))
+                except (OSError, ValueError, TypeError):
+                    metadata = {}
+                files = []
+                total_size = 0
+                for path in work.rglob("*"):
+                    if path.is_file():
+                        size = path.stat().st_size
+                        total_size += size
+                        files.append({
+                            "name": str(path.relative_to(work)),
+                            "size": size,
+                            "size_human": format_size(size),
+                        })
+                items.append({
+                    "id": work.name,
+                    "created": created,
+                    "expires": expires,
+                    "expires_in": max(0, int(expires - now)),
+                    "size": total_size,
+                    "size_human": format_size(total_size),
+                    "files": files,
+                    "metadata": metadata,
+                })
+            except OSError:
+                continue
     items.sort(key=lambda item: item["created"], reverse=True)
     return items
 
 
 def cleanup_old_files():
-    """Supprime les dossiers de traduction temporaires vieux de plus de 2 jours."""
+    """Supprime les dossiers de traduction vieux de plus de 2 jours."""
     cutoff = time.time() - RETENTION_SECONDS
-    temp_root = Path(tempfile.gettempdir())
-    for work in temp_root.glob(f"{TEMP_PREFIX}*"):
+    for root in storage_roots():
         try:
-            if work.is_dir() and work.stat().st_mtime < cutoff:
-                shutil.rmtree(work, ignore_errors=True)
+            works = root.glob(f"{TEMP_PREFIX}*")
         except OSError:
-            pass
-
-
-def cleanup_loop():
-    while True:
-        cleanup_old_files()
-        time.sleep(CLEANUP_INTERVAL_SECONDS)
+            continue
+        for work in works:
+            try:
+                if work.is_dir() and work.stat().st_mtime < cutoff:
+                    shutil.rmtree(work, ignore_errors=True)
+            except OSError:
+                pass
 
 
 PAGE = """<!doctype html>
@@ -446,7 +493,7 @@ def set_job(job_id, **values):
 def worker(job_id, files, source, target, client_ip):
     # Une traduction entière reste rattachée à la clé utilisée au démarrage.
     usage_key_id = os.getenv("LARA_ACCESS_KEY_ID", "").strip()
-    work = Path(tempfile.mkdtemp(prefix="traducteur_"))
+    work = Path(tempfile.mkdtemp(prefix=TEMP_PREFIX, dir=str(STORAGE_PATH)))
     out = work / "traduit"
     pending = work / "a_traduire"
     out.mkdir()
@@ -869,9 +916,9 @@ def admin_delete_storage(work_id):
         return auth
     if "/" in work_id or "\\\\" in work_id or not work_id.startswith(TEMP_PREFIX):
         return jsonify(error="Dossier invalide."), 400
-    work = Path(tempfile.gettempdir()) / work_id
+    work = find_storage_work(work_id)
     try:
-        if not work.is_dir():
+        if work is None or not work.is_dir():
             return jsonify(error="Dossier introuvable."), 404
         shutil.rmtree(work)
     except OSError as exc:
@@ -892,8 +939,10 @@ def admin_download_storage_file():
     if not relative_name:
         return jsonify(error="Fichier invalide."), 400
 
-    work = Path(tempfile.gettempdir()) / work_id
+    work = find_storage_work(work_id)
     try:
+        if work is None:
+            raise FileNotFoundError(work_id)
         work_resolved = work.resolve(strict=True)
         file_path = (work / relative_name).resolve(strict=True)
         file_path.relative_to(work_resolved)
