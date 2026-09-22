@@ -350,6 +350,8 @@ small{display:block;margin-top:8px;color:var(--muted);line-height:1.5}
 <script>
 const start=document.getElementById("start"), files=document.getElementById("files");
 const source=document.getElementById("source"), lang=document.getElementById("lang"), status=document.getElementById("status"), download=document.getElementById("download");
+let downloadPending=document.getElementById("downloadPending");
+if(!downloadPending){download.insertAdjacentHTML("afterend",' <a id="downloadPending" class="download" style="display:none" download>⬇ Télécharger le ZIP des images non traduites</a>');downloadPending=document.getElementById("downloadPending");}
 const usageImages=document.getElementById("usageImages"), usageCost=document.getElementById("usageCost"), usagePrice=document.getElementById("usagePrice");
 function setStatus(t,c=""){status.textContent=t;status.className="status "+c}
 async function refreshUsage(){try{const r=await fetch("/api/lara-usage");const raw=await r.text();let u;try{u=JSON.parse(raw)}catch(e){throw new Error("Réponse invalide du serveur pour l'utilisation Lara (HTTP "+r.status+").")}if(!r.ok)throw new Error(u.error||"Impossible de charger l'utilisation Lara.");usageImages.textContent=u.images+" image"+(u.images>1?"s":"");usageCost.textContent=Number(u.estimated_cost_eur||0).toFixed(2).replace(".",",")+" €";usagePrice.textContent=Number(u.price_eur_per_image||0).toFixed(2).replace(".",",")+" €/image"}catch(e){usageImages.textContent="—";usageCost.textContent="—";usagePrice.textContent="—";}}
@@ -358,10 +360,10 @@ refreshUsage();
 start.onclick=async()=>{
  const selected=[...files.files].filter(f=>/\.(jpe?g|png|webp|tiff?)$/i.test(f.name));
  if(!selected.length){setStatus("Choisis un dossier contenant des images.","err");return}
- start.disabled=true;download.style.display="none";setStatus("Envoi des images…");
+ start.disabled=true;download.style.display="none";if(downloadPending)downloadPending.style.display="none";setStatus("Envoi des images…");
  const fd=new FormData();fd.append("source",source.value);fd.append("target",lang.value);selected.forEach(f=>fd.append("files",f,f.webkitRelativePath||f.name));
  try{const r=await fetch("/translate",{method:"POST",body:fd});const data=await r.json();if(!r.ok)throw new Error(data.error||"Erreur");
- while(true){await new Promise(x=>setTimeout(x,700));const s=await fetch("/status/"+data.job).then(x=>x.json());setStatus(s.message||"Traitement…");if(s.state==="done"){download.href="/download/"+data.job;download.style.display="block";download.textContent="⬇ Télécharger le ZIP";setStatus(s.message,"ok");await refreshUsage();break}if(s.state==="error"){setStatus(s.message||"Erreur","err");await refreshUsage();break}}
+ while(true){await new Promise(x=>setTimeout(x,700));const s=await fetch("/status/"+data.job).then(x=>x.json());setStatus(s.message||"Traitement…");if(s.state==="done"){download.href="/download/"+data.job;download.style.display="block";download.textContent=s.incomplete?"⬇ Télécharger le ZIP traduit":"⬇ Télécharger le ZIP";if(downloadPending){if(s.untranslated_zip){downloadPending.href="/download/"+data.job+"/a-traduire";downloadPending.style.display="inline-block"}else{downloadPending.style.display="none"}}setStatus(s.message,"ok");await refreshUsage();break}if(s.state==="error"){setStatus(s.message||"Erreur","err");await refreshUsage();break}}
  }catch(e){setStatus(e.message||"Erreur","err")}finally{start.disabled=false}
 };
 </script>
