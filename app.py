@@ -635,31 +635,48 @@ def admin_restart():
         return auth
 
     def restart_process():
-        time.sleep(1.2)
-        run_script = Path(__file__).resolve().parent / "run.sh"
+        # Le nouveau processus doit être complètement détaché avant d'arrêter
+        # celui qui sert actuellement Flask. stdin/stdout/stderr sont fermés
+        # pour que le redémarrage survive à l'arrêt du processus courant.
+        time.sleep(0.8)
+        base_dir = Path(__file__).resolve().parent
+        run_script = base_dir / "run.sh"
+        restart_log = base_dir / "restart.log"
         try:
             if run_script.is_file():
-                subprocess.Popen(
-                    ["bash", str(run_script)],
-                    cwd=str(run_script.parent),
-                    start_new_session=True,
-                    stdout=subprocess.DEVNULL,
-                    stderr=subprocess.DEVNULL,
-                )
+                command = ["bash", str(run_script)]
             else:
+                command = [
+                    "bash",
+                    "-lc",
+                    f"set -a; source {ENV_PATH!s}; set +a; exec {Path(__file__).resolve()}",
+                ]
+
+            with restart_log.open("a", encoding="utf-8") as log:
                 subprocess.Popen(
-                    ["bash", "-lc", f"set -a; source {ENV_PATH!s}; set +a; exec {Path(__file__).resolve()}"],
-                    cwd=str(Path(__file__).resolve().parent),
+                    command,
+                    cwd=str(base_dir),
+                    stdin=subprocess.DEVNULL,
+                    stdout=log,
+                    stderr=log,
                     start_new_session=True,
-                    stdout=subprocess.DEVNULL,
-                    stderr=subprocess.DEVNULL,
+                    close_fds=True,
                 )
+
+            # L'ancien serveur libère immédiatement le port. Le nouveau
+            # processus a déjà été lancé indépendamment de celui-ci.
             os._exit(0)
-        except Exception:
-            pass
+        except Exception as exc:
+            try:
+                restart_log.write_text(
+                    f"Échec du redémarrage automatique : {type(exc).__name__}: {exc}\n",
+                    encoding="utf-8",
+                )
+            except OSError:
+                pass
 
     threading.Thread(target=restart_process, daemon=True).start()
-    return jsonify(ok=True, message="Redémarrage lancé. La page va revenir au traducteur.")
+    return jsonify(ok=True, message="Redémarrage automatique lancé. Le nouveau service va démarrer.")
 
 
 @app.get("/api/admin/lara-profiles")
