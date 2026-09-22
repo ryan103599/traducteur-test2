@@ -479,7 +479,19 @@ body{margin:0;font-family:Inter,system-ui,sans-serif;background:#f4f7fb;color:#1
 <script>
 let all=[],kind="all";function esc(s){return String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]))}function fmt(ts){return new Date(ts*1000).toLocaleString("fr-FR")}function url(i,f){return "/api/admin/storage/file?work_id="+encodeURIComponent(i.id)+"&path="+encodeURIComponent(f.name)}function openImg(u){big.src=u;modal.classList.add("open")}function closeModal(e){if(e.target.id==="modal"||e.target.tagName==="BUTTON"){modal.classList.remove("open");big.src=""}}
 function render(){const from=fromEl.value?new Date(fromEl.value+"T00:00:00").getTime()/1000:-Infinity,to=toEl.value?new Date(toEl.value+"T23:59:59").getTime()/1000:Infinity,needle=ipEl.value.trim().toLowerCase(),mi=minEl.value?Number(minEl.value)*1024:0,ma=maxEl.value?Number(maxEl.value)*1024:Infinity;const items=all.filter(i=>i.created>=from&&i.created<=to&&(!needle||String(i.metadata?.client_ip||"").toLowerCase().includes(needle))&&i.size>=mi&&i.size<=ma);jobs.innerHTML=items.map(i=>{const ins=i.files.filter(f=>/^input_\d+\.(jpe?g|png|webp|tiff?)$/i.test(f.name)),outs=i.files.filter(f=>/^traduit\//i.test(f.name)&&/\.(jpe?g|png|webp|tiff?)$/i.test(f.name));const showIn=kind!=="translated",showOut=kind!=="uploaded";const card=f=>'<div class="file-card"><img src="'+url(i,f)+'&preview=1" onclick="openImg(\''+url(i,f)+'&preview=1\')" alt=""><div class="file-name">'+esc(f.name)+'</div><div class="file-meta">'+esc(f.size_human)+'</div><div class="file-actions"><a href="'+url(i,f)+'">Télécharger</a></div></div>';return '<div class="job"><div class="job-head"><div><b>'+esc(i.id)+'</b><div class="meta">'+fmt(i.created)+' · IP '+esc(i.metadata?.client_ip||"inconnue")+' · '+esc(i.size_human)+'</div></div><button class="danger" onclick="removeItem(\''+esc(i.id)+'\')">Supprimer</button></div>'+(showIn?'<div class="section"><h3>Images envoyées</h3><div class="file-grid">'+(ins.length?ins.map(card).join(""):"<div class=empty>Aucune</div>")+"</div></div>":"")+(showOut?'<div class="section"><h3>Images traduites</h3><div class="file-grid">'+(outs.length?outs.map(card).join(""):"<div class=empty>Aucune</div>")+"</div></div>":"")+'<div class="zip">'+(i.files.some(f=>/\\.zip$/i.test(f.name))?'<a href="'+url(i,i.files.find(f=>/\.zip$/i.test(f.name)))+'">Télécharger le ZIP</a>':"Aucun ZIP")+"</div></div>"}).join("")||'<div class="empty">Aucun résultat avec ces filtres.</div>"}
-const fromEl=document.getElementById("from"),toEl=document.getElementById("to"),ipEl=document.getElementById("ip"),minEl=document.getElementById("min"),maxEl=document.getElementById("max"),jobs=document.getElementById("jobs"),modal=document.getElementById("modal"),big=document.getElementById("big");async function load(){const r=await fetch("/api/admin/storage");if(r.ok){all=(await r.json()).items;render()}}async function removeItem(id){if(!confirm("Supprimer définitivement ce dossier et toutes ses images ?"))return;await fetch("/api/admin/storage/"+encodeURIComponent(id),{method:"DELETE"});load()}document.querySelectorAll(".tab").forEach(b=>b.onclick=()=>{kind=b.dataset.f;document.querySelectorAll(".tab").forEach(x=>x.classList.toggle("active",x===b));render()});load();setInterval(load,10000);
+const fromEl=document.getElementById("from"),toEl=document.getElementById("to"),ipEl=document.getElementById("ip"),minEl=document.getElementById("min"),maxEl=document.getElementById("max"),jobs=document.getElementById("jobs"),modal=document.getElementById("modal"),big=document.getElementById("big");async function load(){
+ const requested=new URLSearchParams(location.search).get("work_id");
+ const endpoint=requested?"/api/admin/storage/"+encodeURIComponent(requested):"/api/admin/storage";
+ const r=await fetch(endpoint);
+ if(r.ok){
+   const data=await r.json();
+   all=requested?(data.item?[data.item]:[]):data.items;
+   render();
+ }else{
+   all=[];
+   jobs.innerHTML='<div class="empty">Ce dossier n’existe plus ou n’est plus accessible.</div>';
+ }
+}async function removeItem(id){if(!confirm("Supprimer définitivement ce dossier et toutes ses images ?"))return;await fetch("/api/admin/storage/"+encodeURIComponent(id),{method:"DELETE"});load()}document.querySelectorAll(".tab").forEach(b=>b.onclick=()=>{kind=b.dataset.f;document.querySelectorAll(".tab").forEach(x=>x.classList.toggle("active",x===b));render()});load();setInterval(load,10000);
 </script></main></div></body></html>"""
 
 CONFIG_ADMIN_PAGE = """<!doctype html><html lang="fr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Administration · Configuration</title><style>
@@ -917,6 +929,53 @@ def admin_storage():
     if auth:
         return auth
     return jsonify(items=list_stored_files())
+
+
+@app.get("/api/admin/storage/<work_id>")
+def admin_get_storage(work_id):
+    auth = require_admin_api()
+    if auth:
+        return auth
+    work = find_storage_work(work_id)
+    if work is None:
+        return jsonify(error="Dossier introuvable.", id=work_id), 404
+
+    now = time.time()
+    created = work.stat().st_mtime
+    metadata = {}
+    metadata_path = work / "metadata.json"
+    try:
+        if metadata_path.is_file():
+            metadata = json.loads(metadata_path.read_text(encoding="utf-8"))
+    except (OSError, ValueError, TypeError):
+        metadata = {}
+
+    files = []
+    total_size = 0
+    for path in work.rglob("*"):
+        try:
+            if path.is_file():
+                size = path.stat().st_size
+                total_size += size
+                files.append({
+                    "name": str(path.relative_to(work)),
+                    "size": size,
+                    "size_human": format_size(size),
+                })
+        except OSError:
+            continue
+
+    item = {
+        "id": work.name,
+        "created": created,
+        "expires": created + RETENTION_SECONDS,
+        "expires_in": max(0, int(created + RETENTION_SECONDS - now)),
+        "size": total_size,
+        "size_human": format_size(total_size),
+        "files": files,
+        "metadata": metadata,
+    }
+    return jsonify(item=item)
 
 
 @app.delete("/api/admin/storage/<work_id>")
