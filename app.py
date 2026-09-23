@@ -1,4 +1,5 @@
 import hmac
+from html import escape
 import json
 import os
 import shutil
@@ -8,6 +9,7 @@ import threading
 import time
 import uuid
 import zipfile
+from urllib.parse import quote
 from pathlib import Path
 
 from flask import Flask, jsonify, redirect, render_template_string, request, send_file, session, url_for
@@ -308,6 +310,31 @@ def cleanup_loop():
         time.sleep(CLEANUP_INTERVAL_SECONDS)
 
 
+def render_admin_storage_jobs(items, kind="all"):
+    parts = []
+    for item in items:
+        files = item.get("files", [])
+        uploaded = [f for f in files if Path(f.get("name", "")).suffix.lower() in ALLOWED and not f.get("name", "").lower().startswith("traduit/")]
+        translated = [f for f in files if Path(f.get("name", "")).suffix.lower() in ALLOWED and f.get("name", "").lower().startswith("traduit/")]
+        wid = quote(str(item.get("id", "")), safe="")
+        meta = item.get("metadata") or {}
+        def cards(group):
+            out = []
+            for f in group:
+                name = str(f.get("name", ""))
+                p = quote(name, safe="")
+                out.append('<div class="file-card"><img src="/api/admin/storage/file?work_id='+wid+'&path='+p+'&preview=1" alt="'+escape(name, quote=True)+'" loading="lazy"><div class="file-name">'+escape(name)+'</div><div class="file-meta">'+escape(str(f.get("size_human", "")))+'</div><div class="file-actions"><a href="/api/admin/storage/file?work_id='+wid+'&path='+p+'">Télécharger</a></div></div>')
+            return "".join(out)
+        h = '<div class="job"><div class="job-head"><div><b>'+escape(str(item.get("id", "")))+'</b><div class="meta">'+escape(time.strftime("%d/%m/%Y %H:%M:%S", time.localtime(item.get("created", 0))))+' · IP '+escape(str(meta.get("client_ip", "inconnue")))+' · '+escape(str(item.get("size_human", "")))+'</div></div></div>'
+        if kind != "translated":
+            h += '<div class="section"><h3>Images envoyées ('+str(len(uploaded))+')</h3><div class="file-grid">'+(cards(uploaded) or '<div class="empty">Aucune</div>')+'</div></div>'
+        if kind != "uploaded":
+            h += '<div class="section"><h3>Images traduites ('+str(len(translated))+')</h3><div class="file-grid">'+(cards(translated) or '<div class="empty">Aucune</div>')+'</div></div>'
+        h += '</div>'
+        parts.append(h)
+    return "".join(parts) or '<div class="empty">Aucune image trouvée avec ces filtres.</div>'
+
+
 PAGE = """<!doctype html>
 <html lang="fr">
 <head>
@@ -479,10 +506,10 @@ body{margin:0;font-family:Inter,system-ui,sans-serif;background:#f4f7fb;color:#1
 <a href="/admin">📊 Tableau de bord</a><a href="/admin/images" class="active">🖼️ Images</a><a href="/admin/config">⚙️ Configuration</a><a href="/">← Retour au traducteur</a><a href="/admin/logout">↪ Déconnexion</a>
 </nav></aside>
 <main class="main"><h1>Images</h1><p class="meta">Images réellement stockées dans /tmp, avec aperçu, téléchargement et suppression.</p>
-<div class="card"><div class="filters">
-<label>Date début<input id="from" type="date"></label><label>Date fin<input id="to" type="date"></label><label>IP<input id="ip" placeholder="ex. 192.168.1.10"></label><label>Taille min (Ko)<input id="min" type="number" min="0" step="1"></label><label>Taille max (Ko)<input id="max" type="number" min="0" step="1"></label><button id="filter" class="btn">Filtrer</button>
-</div>
-<div class="subfilters"><button class="tab active" data-f="all">Tout</button><button class="tab" data-f="uploaded">Envoyées</button><button class="tab" data-f="translated">Traduites</button></div>
+<div class="card"><form class="filters" method="get" action="/admin/images">
+<label>Date début<input id="from" name="from" type="date"></label><label>Date fin<input id="to" name="to" type="date"></label><label>IP<input id="ip" name="ip" placeholder="ex. 192.168.1.10"></label><label>Taille min (Ko)<input id="min" name="min" type="number" min="0" step="1"></label><label>Taille max (Ko)<input id="max" name="max" type="number" min="0" step="1"></label><button id="filter" class="btn" type="submit">Filtrer</button>
+</form>
+<div class="subfilters"><a class="tab" href="/admin/images">Tout</a><a class="tab" href="/admin/images?view=uploaded">Envoyées</a><a class="tab" href="/admin/images?view=translated">Traduites</a></div>
 <p class="hint">Les images envoyées sont les fichiers originaux du traitement. Les images traduites sont dans le dossier <code>traduit/</code>.</p></div>
 <div id="jobs"></div></main></div>
 <div id="modal" class="modal"><button id="closeModal" type="button">×</button><img id="big" alt="Aperçu"></div>
@@ -829,19 +856,20 @@ def admin_images():
     auth = require_admin_page()
     if auth:
         return auth
-    try:
-        initial_items = list_stored_files()
-    except Exception:
-        app.logger.exception("Impossible de charger le stockage pour /admin/images")
-        initial_items = []
+    initial_items = list_stored_files()
+    view = request.args.get("view", "all")
+    if view not in {"all", "uploaded", "translated"}:
+        view = "all"
+    ip = request.args.get("ip", "").strip().lower()
+    filtered = []
+    for item in initial_items:
+        if ip and ip not in str((item.get("metadata") or {}).get("client_ip", "")).lower():
+            continue
+        filtered.append(item)
     initial_json = json.dumps(initial_items, ensure_ascii=False, separators=(",", ":"))
-    # Sécurise l'injection JSON dans la balise <script>.
     initial_json = initial_json.replace("<", "\\u003c").replace(">", "\\u003e").replace("&", "\\u0026")
     page = IMAGES_ADMIN_PAGE.replace("__INITIAL_STORAGE__", initial_json)
-    page = page.replace(
-        '<div id="jobs"></div>',
-        '<div id="jobs"><div class="empty">Chargement des images…</div></div>',
-    )
+    page = page.replace('<div id="jobs"></div>', '<div id="jobs">'+render_admin_storage_jobs(filtered, view)+'</div>')
     return page
 
 
