@@ -458,54 +458,109 @@ document.getElementById("recent").innerHTML=items.slice(0,8).map(x=>'<div class=
 </script></main></div></body></html>"""
 
 IMAGES_ADMIN_PAGE = """<!doctype html>
-<html lang="fr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Administration · Images</title>
+<html lang="fr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Administration · Images</title>
 <style>
-body{margin:0;font-family:Inter,system-ui,sans-serif;background:#f4f7fb;color:#172033}.layout{display:flex;min-height:100vh}.sidebar{width:250px;background:#111827;color:#fff;padding:24px 16px;position:fixed;inset:0 auto 0 0}.brand{font-size:20px;font-weight:800;padding:8px 10px 26px}.brand span{display:inline-grid;place-items:center;width:38px;height:38px;border-radius:11px;background:linear-gradient(135deg,#635bff,#8b5cf6);margin-right:9px;vertical-align:middle}.nav{display:grid;gap:6px}.nav a{color:#d1d5db;text-decoration:none;padding:12px;border-radius:10px;font-weight:650}.nav a:hover,.nav a.active{background:#ffffff14;color:#fff}.main{margin-left:250px;padding:32px;width:calc(100% - 250px);max-width:1500px}.card,.job{background:#fff;border:1px solid #e4e7ec;border-radius:16px;padding:20px;margin-bottom:18px}.filters{display:grid;grid-template-columns:1.2fr 1fr 1fr 1fr 1fr auto;gap:9px;align-items:end}.filters label{font-size:12px;font-weight:750}.filters input{width:100%;margin-top:6px;padding:10px;border:1px solid #d0d5dd;border-radius:9px}.btn{border:0;border-radius:9px;padding:10px 14px;background:#635bff;color:#fff;font-weight:750;cursor:pointer}.subfilters{display:flex;gap:8px;margin-top:12px}.tab{border:1px solid #d0d5dd;background:#fff;padding:8px 12px;border-radius:9px;cursor:pointer}.tab.active{background:#eef4ff;color:#3538cd;border-color:#c7d7fe}.job-head{display:flex;justify-content:space-between}.meta{color:#667085;font-size:13px;margin-top:5px}.file-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:12px;margin-top:10px}.file-card{border:1px solid #e4e7ec;border-radius:11px;padding:9px;background:#fafafa}.file-card img{width:100%;height:145px;object-fit:contain;background:white;border-radius:8px;cursor:zoom-in}.file-name{font-size:13px;word-break:break-word;margin-top:7px}.file-meta{font-size:12px;color:#667085}.file-actions{margin-top:6px}.file-actions a{color:#4f46e5;text-decoration:none}.danger{border:0;border-radius:8px;padding:9px 12px;background:#b42318;color:#fff;cursor:pointer}.zip{margin-top:14px;padding:11px;border:1px dashed #d0d5dd}.empty{text-align:center;padding:40px;color:#667085}.modal{position:fixed;inset:0;background:#000b;display:none;align-items:center;justify-content:center;z-index:20}.modal.open{display:flex}.modal img{max-width:95vw;max-height:90vh;background:#fff}.modal button{position:absolute;right:20px;top:15px;border:0;border-radius:50%;width:42px;height:42px;font-size:24px}.hint{font-size:12px;color:#667085}@media(max-width:900px){.sidebar{width:210px}.main{margin-left:210px;width:calc(100% - 210px);padding:20px}.filters{grid-template-columns:1fr 1fr}}@media(max-width:650px){.layout{display:block}.sidebar{position:static;width:auto;padding:12px}.nav{display:flex;overflow:auto}.main{margin:0;width:auto}.filters{grid-template-columns:1fr}.job-head{display:block}}
-</style></head><body><div class="layout"><aside class="sidebar"><div class="brand"><span>文</span> Administration</div><nav class="nav"><a href="/admin">📊 Tableau de bord</a><a href="/admin/images" class="active">🖼️ Images</a><a href="/admin/config">⚙️ Configuration</a><a href="/">← Retour au traducteur</a><a href="/admin/logout">↪ Déconnexion</a></nav></aside><main class="main"><h1>Images</h1><p class="meta">Recherche par date, IP, taille en Ko et type d'image.</p>
+body{margin:0;font-family:Inter,system-ui,sans-serif;background:#f4f7fb;color:#172033}
+.layout{display:flex;min-height:100vh}.sidebar{width:250px;background:#111827;color:#fff;padding:24px 16px;position:fixed;inset:0 auto 0 0}
+.brand{font-size:20px;font-weight:800;padding:8px 10px 26px}.brand span{display:inline-grid;place-items:center;width:38px;height:38px;border-radius:11px;background:linear-gradient(135deg,#635bff,#8b5cf6);margin-right:9px;vertical-align:middle}
+.nav{display:grid;gap:6px}.nav a{color:#d1d5db;text-decoration:none;padding:12px;border-radius:10px;font-weight:650}.nav a:hover,.nav a.active{background:#ffffff14;color:#fff}
+.main{margin-left:250px;padding:32px;width:calc(100% - 250px);max-width:1500px}.card,.job{background:#fff;border:1px solid #e4e7ec;border-radius:16px;padding:20px;margin-bottom:18px}
+.filters{display:grid;grid-template-columns:1.2fr 1fr 1fr 1fr 1fr auto;gap:9px;align-items:end}.filters label{font-size:12px;font-weight:750}.filters input{width:100%;margin-top:6px;padding:10px;border:1px solid #d0d5dd;border-radius:9px;box-sizing:border-box}
+.btn{border:0;border-radius:9px;padding:10px 14px;background:#635bff;color:#fff;font-weight:750;cursor:pointer}.subfilters{display:flex;gap:8px;margin-top:12px}.tab{border:1px solid #d0d5dd;background:#fff;padding:8px 12px;border-radius:9px;cursor:pointer}.tab.active{background:#eef4ff;color:#3538cd;border-color:#c7d7fe}
+.job-head{display:flex;justify-content:space-between;gap:12px}.meta{color:#667085;font-size:13px;margin-top:5px}.section{margin-top:15px}.section h3{font-size:15px;margin:0 0 10px}
+.file-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:12px;margin-top:10px}.file-card{border:1px solid #e4e7ec;border-radius:11px;padding:9px;background:#fafafa}.file-card img{width:100%;height:145px;object-fit:contain;background:white;border-radius:8px;cursor:zoom-in}.file-name{font-size:13px;word-break:break-word;margin-top:7px}.file-meta{font-size:12px;color:#667085}.file-actions{margin-top:6px}.file-actions a{color:#4f46e5;text-decoration:none}
+.danger{border:0;border-radius:8px;padding:9px 12px;background:#b42318;color:#fff;cursor:pointer}.zip{margin-top:14px;padding:11px;border:1px dashed #d0d5dd}.empty{text-align:center;padding:40px;color:#667085}.hint{font-size:12px;color:#667085}
+.modal{position:fixed;inset:0;background:#000b;display:none;align-items:center;justify-content:center;z-index:20}.modal.open{display:flex}.modal img{max-width:95vw;max-height:90vh;background:#fff}.modal button{position:absolute;right:20px;top:15px;border:0;border-radius:50%;width:42px;height:42px;font-size:24px;cursor:pointer}
+@media(max-width:900px){.sidebar{width:210px}.main{margin-left:210px;width:calc(100% - 210px);padding:20px}.filters{grid-template-columns:1fr 1fr}}
+@media(max-width:650px){.layout{display:block}.sidebar{position:static;width:auto;padding:12px}.nav{display:flex;overflow:auto}.main{margin:0;width:auto}.filters{grid-template-columns:1fr}.job-head{display:block}}
+</style></head><body>
+<div class="layout"><aside class="sidebar"><div class="brand"><span>文</span> Administration</div><nav class="nav">
+<a href="/admin">📊 Tableau de bord</a><a href="/admin/images" class="active">🖼️ Images</a><a href="/admin/config">⚙️ Configuration</a><a href="/">← Retour au traducteur</a><a href="/admin/logout">↪ Déconnexion</a>
+</nav></aside>
+<main class="main"><h1>Images</h1><p class="meta">Images réellement stockées dans /tmp, avec aperçu, téléchargement et suppression.</p>
 <div class="card"><div class="filters">
-<label>Date début<input id="from" type="date"></label><label>Date fin<input id="to" type="date"></label><label>IP<input id="ip" placeholder="ex. 192.168.1.10"></label><label>Taille min (Ko)<input id="min" type="number" min="0" step="1"></label><label>Taille max (Ko)<input id="max" type="number" min="0" step="1"></label><button class="btn" onclick="load()">Filtrer</button></div>
-<div class="subfilters"><button class="tab active" data-f="all">Tout</button><button class="tab" data-f="uploaded">Envoyées</button><button class="tab" data-f="translated">Traduites</button></div><p class="hint">La taille filtre la taille totale du dossier. Pour cibler une image précise, utilisez son aperçu et sa taille affichée.</p></div><div id="jobs"></div></main></div>
-<div id="modal" class="modal" onclick="closeModal(event)"><button onclick="closeModal(event)">×</button><img id="big"></div>
+<label>Date début<input id="from" type="date"></label><label>Date fin<input id="to" type="date"></label><label>IP<input id="ip" placeholder="ex. 192.168.1.10"></label><label>Taille min (Ko)<input id="min" type="number" min="0" step="1"></label><label>Taille max (Ko)<input id="max" type="number" min="0" step="1"></label><button id="filter" class="btn">Filtrer</button>
+</div>
+<div class="subfilters"><button class="tab active" data-f="all">Tout</button><button class="tab" data-f="uploaded">Envoyées</button><button class="tab" data-f="translated">Traduites</button></div>
+<p class="hint">Les images envoyées sont les fichiers originaux du traitement. Les images traduites sont dans le dossier <code>traduit/</code>.</p></div>
+<div id="jobs"></div></main></div>
+<div id="modal" class="modal"><button id="closeModal" type="button">×</button><img id="big" alt="Aperçu"></div>
 <script>
-let all=[],kind="all";function esc(s){return String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]))}function fmt(ts){return new Date(ts*1000).toLocaleString("fr-FR")}function url(i,f){return "/api/admin/storage/file?work_id="+encodeURIComponent(i.id)+"&path="+encodeURIComponent(f.name)}function openImg(u){big.src=u;modal.classList.add("open")}function closeModal(e){if(e.target.id==="modal"||e.target.tagName==="BUTTON"){modal.classList.remove("open");big.src=""}}
-let all=[],kind="all";
-function esc(s){return String(s ?? "").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]))}
-function fmt(ts){return new Date(ts*1000).toLocaleString("fr-FR")}
-function url(i,f){return "/api/admin/storage/file?work_id="+encodeURIComponent(i.id)+"&path="+encodeURIComponent(f.name)}
-function openImg(u){big.src=u;modal.classList.add("open")}
-function closeModal(e){if(e.target.id==="modal"||e.target.tagName==="BUTTON"){modal.classList.remove("open");big.src=""}}
-function render(){
- const from=fromEl.value?new Date(fromEl.value+"T00:00:00").getTime()/1000:-Infinity;
- const to=toEl.value?new Date(toEl.value+"T23:59:59").getTime()/1000:Infinity;
- const needle=ipEl.value.trim().toLowerCase();
- const mi=minEl.value?Number(minEl.value)*1024:0;
- const ma=maxEl.value?Number(maxEl.value)*1024:Infinity;
- const items=all.filter(i=>i.created>=from&&i.created<=to&&(!needle||String(i.metadata?.client_ip||"").toLowerCase().includes(needle))&&i.size>=mi&&i.size<=ma);
- jobs.innerHTML=items.map(i=>{
-   const ins=i.files.filter(f=>/^input_\d+\.(jpe?g|png|webp|tiff?)$/i.test(f.name));
-   const outs=i.files.filter(f=>/^traduit\//i.test(f.name)&&/\.(jpe?g|png|webp|tiff?)$/i.test(f.name));
-   const showIn=kind!=="translated",showOut=kind!=="uploaded";
-   const card=f=>'<div class="file-card"><img src="'+url(i,f)+'&preview=1" onclick="openImg(\\''+url(i,f)+'&preview=1\\')" alt=""><div class="file-name">'+esc(f.name)+'</div><div class="file-meta">'+esc(f.size_human)+'</div><div class="file-actions"><a href="'+url(i,f)+'">Télécharger</a></div></div>';
-   return '<div class="job"><div class="job-head"><div><b>'+esc(i.id)+'</b><div class="meta">'+fmt(i.created)+' · IP '+esc(i.metadata?.client_ip||"inconnue")+' · '+esc(i.size_human)+'</div></div><button class="danger" onclick="removeItem(\\''+esc(i.id)+'\\')">Supprimer</button></div>'+
-     (showIn?'<div class="section"><h3>Images envoyées</h3><div class="file-grid">'+(ins.length?ins.map(card).join(""):"<div class=empty>Aucune</div>")+'</div></div>':"")+
-     (showOut?'<div class="section"><h3>Images traduites</h3><div class="file-grid">'+(outs.length?outs.map(card).join(""):"<div class=empty>Aucune</div>")+'</div></div>':"")+
-     '<div class="zip">'+(i.files.some(f=>/\.zip$/i.test(f.name))?'<a href="'+url(i,i.files.find(f=>/\.zip$/i.test(f.name)))+'">Télécharger le ZIP</a>':"Aucun ZIP")+"</div></div>";
- }).join("")||'<div class="empty">Aucun résultat avec ces filtres.</div>';
+(function(){
+"use strict";
+let all=[]; let kind="all";
+const fromEl=document.getElementById("from"), toEl=document.getElementById("to"), ipEl=document.getElementById("ip");
+const minEl=document.getElementById("min"), maxEl=document.getElementById("max"), jobs=document.getElementById("jobs");
+const modal=document.getElementById("modal"), big=document.getElementById("big");
+
+function esc(value){
+  return String(value ?? "").replace(/[&<>"']/g,function(c){
+    return {"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[c];
+  });
 }
-const fromEl=document.getElementById("from"),toEl=document.getElementById("to"),ipEl=document.getElementById("ip"),minEl=document.getElementById("min"),maxEl=document.getElementById("max"),jobs=document.getElementById("jobs"),modal=document.getElementById("modal"),big=document.getElementById("big");async function load(){
- const requested=new URLSearchParams(location.search).get("work_id");
- const endpoint=requested?"/api/admin/storage/"+encodeURIComponent(requested):"/api/admin/storage";
- const r=await fetch(endpoint);
- if(r.ok){
-   const data=await r.json();
-   all=requested?(data.item?[data.item]:[]):data.items;
-   render();
- }else{
-   all=[];
-   jobs.innerHTML='<div class="empty">Ce dossier n’existe plus ou n’est plus accessible.</div>';
- }
-}async function removeItem(id){if(!confirm("Supprimer définitivement ce dossier et toutes ses images ?"))return;await fetch("/api/admin/storage/"+encodeURIComponent(id),{method:"DELETE"});load()}document.querySelectorAll(".tab").forEach(b=>b.onclick=()=>{kind=b.dataset.f;document.querySelectorAll(".tab").forEach(x=>x.classList.toggle("active",x===b));render()});load();setInterval(load,10000);
-</script></main></div></body></html>"""
+function fmt(ts){return new Date(ts*1000).toLocaleString("fr-FR");}
+function fileUrl(item,file,preview){
+  return "/api/admin/storage/file?work_id="+encodeURIComponent(item.id)+"&path="+encodeURIComponent(file.name)+(preview?"&preview=1":"");
+}
+function isImage(file){return /\.(jpe?g|png|webp|tiff?)$/i.test(file.name);}
+function render(){
+  const from=fromEl.value?new Date(fromEl.value+"T00:00:00").getTime()/1000:-Infinity;
+  const to=toEl.value?new Date(toEl.value+"T23:59:59").getTime()/1000:Infinity;
+  const needle=ipEl.value.trim().toLowerCase();
+  const mi=minEl.value?Number(minEl.value)*1024:0;
+  const ma=maxEl.value?Number(maxEl.value)*1024:Infinity;
+  const items=all.filter(function(i){
+    return i.created>=from && i.created<=to &&
+      (!needle || String((i.metadata||{}).client_ip||"").toLowerCase().includes(needle)) &&
+      i.size>=mi && i.size<=ma;
+  });
+  if(!items.length){jobs.innerHTML='<div class="empty">Aucune image trouvée avec ces filtres.</div>';return;}
+  jobs.innerHTML=items.map(function(item){
+    const uploaded=item.files.filter(function(f){return isImage(f) && !/^traduit\//i.test(f.name);});
+    const translated=item.files.filter(function(f){return isImage(f) && /^traduit\//i.test(f.name);});
+    const showUploaded=kind!=="translated", showTranslated=kind!=="uploaded";
+    function card(file){
+      const preview=fileUrl(item,file,true), download=fileUrl(item,file,false);
+      return '<div class="file-card"><img src="'+preview+'" data-preview="'+preview+'" alt="'+esc(file.name)+'"><div class="file-name">'+esc(file.name)+'</div><div class="file-meta">'+esc(file.size_human)+'</div><div class="file-actions"><a href="'+download+'">Télécharger</a></div></div>';
+    }
+    let html='<div class="job"><div class="job-head"><div><b>'+esc(item.id)+'</b><div class="meta">'+fmt(item.created)+' · IP '+esc((item.metadata||{}).client_ip||"inconnue")+' · '+esc(item.size_human)+'</div></div><button class="danger delete-job" data-id="'+esc(item.id)+'">Supprimer</button></div>';
+    if(showUploaded) html+='<div class="section"><h3>Images envoyées ('+uploaded.length+')</h3><div class="file-grid">'+(uploaded.length?uploaded.map(card).join(""):'<div class="empty">Aucune</div>')+'</div></div>';
+    if(showTranslated) html+='<div class="section"><h3>Images traduites ('+translated.length+')</h3><div class="file-grid">'+(translated.length?translated.map(card).join(""):'<div class="empty">Aucune</div>')+'</div></div>';
+    const zips=item.files.filter(function(f){return /\.zip$/i.test(f.name);});
+    html+='<div class="zip">'+(zips.length?zips.map(function(z){return '<a href="'+fileUrl(item,z,false)+'">Télécharger '+esc(z.name)+'</a>';}).join(" · "):"Aucun ZIP")+'</div></div>';
+    return html;
+  }).join("");
+  jobs.querySelectorAll("img[data-preview]").forEach(function(img){img.addEventListener("click",function(){big.src=img.dataset.preview;modal.classList.add("open");});});
+  jobs.querySelectorAll(".delete-job").forEach(function(btn){btn.addEventListener("click",function(){removeItem(btn.dataset.id);});});
+}
+async function load(){
+  try{
+    const requested=new URLSearchParams(window.location.search).get("work_id");
+    const endpoint=requested?"/api/admin/storage/"+encodeURIComponent(requested):"/api/admin/storage";
+    const response=await fetch(endpoint,{cache:"no-store"});
+    const data=await response.json();
+    if(!response.ok) throw new Error(data.error||"Erreur "+response.status);
+    all=requested?(data.item?[data.item]:[]):(data.items||[]);
+    render();
+  }catch(error){
+    all=[]; jobs.innerHTML='<div class="empty">Impossible de charger les images : '+esc(error.message)+'</div>';
+  }
+}
+async function removeItem(id){
+  if(!window.confirm("Supprimer définitivement ce dossier et toutes ses images ?"))return;
+  try{await fetch("/api/admin/storage/"+encodeURIComponent(id),{method:"DELETE"});}finally{load();}
+}
+document.getElementById("filter").addEventListener("click",render);
+document.querySelectorAll(".tab").forEach(function(btn){btn.addEventListener("click",function(){
+  kind=btn.dataset.f; document.querySelectorAll(".tab").forEach(function(x){x.classList.toggle("active",x===btn);}); render();
+});});
+document.getElementById("closeModal").addEventListener("click",function(){modal.classList.remove("open");big.src="";});
+modal.addEventListener("click",function(e){if(e.target===modal){modal.classList.remove("open");big.src="";}});
+load(); window.setInterval(load,10000);
+})();
+</script></body></html>"""
+
 
 CONFIG_ADMIN_PAGE = """<!doctype html><html lang="fr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Administration · Configuration</title><style>
 body{margin:0;font-family:Inter,system-ui,sans-serif;background:#f4f7fb;color:#172033}.layout{display:flex;min-height:100vh}.sidebar{width:250px;background:#111827;color:#fff;padding:24px 16px;position:fixed;inset:0 auto 0 0}.brand{font-size:20px;font-weight:800;padding:8px 10px 26px}.brand span{display:inline-grid;place-items:center;width:38px;height:38px;border-radius:11px;background:linear-gradient(135deg,#635bff,#8b5cf6);margin-right:9px;vertical-align:middle}.nav{display:grid;gap:6px}.nav a{color:#d1d5db;text-decoration:none;padding:12px;border-radius:10px;font-weight:650}.nav a:hover,.nav a.active{background:#ffffff14;color:#fff}.main{margin-left:250px;padding:32px;width:calc(100% - 250px);max-width:1100px}.card{background:#fff;border:1px solid #e4e7ec;border-radius:16px;padding:24px}.profile-card{margin-bottom:22px;padding:18px;border:1px solid #e4e7ec;border-radius:13px;background:#fafbff}.profile-card h2{margin:0 0 5px;font-size:17px}.profile-card p{margin:0 0 14px;color:#667085;font-size:13px}.profile-row{display:flex;gap:9px;margin-top:9px}.profile-row select,.profile-row input{flex:1;min-width:0;padding:11px;border:1px solid #d0d5dd;border-radius:9px;font:inherit}.profile-btn{border:0;border-radius:9px;padding:10px 13px;background:#635bff;color:#fff;font-weight:750;cursor:pointer}.danger-btn{background:#b42318}.profile-msg{display:none;margin-top:10px;padding:9px;border-radius:8px;font-size:13px}.profile-msg.show{display:block;background:#ecfdf3;color:#067647}.grid{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:20px}.grid label{font-size:13px;font-weight:700}.grid input{width:100%;margin-top:7px;padding:12px;border:1px solid #d0d5dd;border-radius:9px;box-sizing:border-box}.actions{grid-column:1/-1;display:flex;gap:12px;align-items:center}.save{border:0;border-radius:9px;padding:12px 16px;background:#635bff;color:#fff;font-weight:800;cursor:pointer}.msg{display:none;padding:11px;border-radius:9px;margin-top:15px}.msg.ok{display:block;background:#ecfdf3;color:#067647}.msg.err{display:block;background:#fef3f2;color:#b42318}@media(max-width:650px){.layout{display:block}.sidebar{position:static;width:auto;padding:12px}.nav{display:flex;overflow:auto}.main{margin:0;width:auto;padding:20px}.grid{grid-template-columns:1fr}.actions{grid-column:auto}}
