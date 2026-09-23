@@ -472,7 +472,7 @@ ADMIN_PAGE = """<!doctype html>
 .layout{display:flex;min-height:100vh}.sidebar{width:250px;background:#111827;color:#fff;padding:24px 16px;position:fixed;inset:0 auto 0 0}.brand{font-size:20px;font-weight:800;padding:8px 10px 26px}.brand span{display:inline-grid;place-items:center;width:38px;height:38px;border-radius:11px;background:linear-gradient(135deg,#635bff,#8b5cf6);margin-right:9px;vertical-align:middle}
 .nav{display:grid;gap:6px}.nav a{color:#d1d5db;text-decoration:none;padding:12px 13px;border-radius:10px;font-weight:650}.nav a:hover,.nav a.active{background:#ffffff14;color:#fff}.nav .back{margin-top:20px;border-top:1px solid #ffffff18;padding-top:20px}
 .main{margin-left:250px;width:calc(100% - 250px);padding:32px;max-width:1500px}.top{display:flex;justify-content:space-between;gap:20px;align-items:flex-start;margin-bottom:24px}.top h1{margin:0 0 6px;font-size:30px}.muted{color:var(--muted)}.card{background:white;border:1px solid var(--line);border-radius:18px;padding:22px;box-shadow:0 8px 30px #1018280a;margin-bottom:20px}
-.filters{display:grid;grid-template-columns:1.2fr 1fr 1fr 1fr 1fr auto;gap:10px;align-items:end}.filters label{font-size:12px;font-weight:750;color:#475467}.filters input,.filters select{width:100%;margin-top:6px;padding:11px 12px;border:1px solid #d0d5dd;border-radius:9px;font:inherit}.btn{border:0;border-radius:9px;padding:11px 14px;font-weight:750;cursor:pointer}.primary{background:var(--primary);color:#fff}.danger{background:var(--danger);color:#fff}.stats{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}.stat{padding:16px;border:1px solid var(--line);border-radius:12px;background:#fafbff}.stat b{display:block;font-size:23px;margin-top:5px}.job{border:1px solid var(--line);border-radius:16px;padding:18px;margin-top:14px}.job-head{display:flex;justify-content:space-between;gap:15px}.job-title{font-weight:800}.job-meta{font-size:13px;color:#667085;margin-top:5px}.section{margin-top:15px}.section h3{font-size:15px;margin:0 0 10px}.file-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:12px}.file-card{position:relative;border:1px solid var(--line);border-radius:11px;padding:9px;background:#fafafa;overflow:visible}.file-card img{width:100%;height:145px;object-fit:contain;background:#fff;border-radius:8px;cursor:zoom-in}.file-name{font-size:13px;word-break:break-word;margin-top:7px}.file-meta{font-size:12px;color:#667085;margin-top:3px}.file-actions{margin-top:6px}.file-actions a{color:#4f46e5;text-decoration:none;font-size:13px}.zip{margin-top:15px;padding:12px;border:1px dashed #d0d5dd;border-radius:10px}.empty{padding:45px;text-align:center;color:#667085}.modal{position:fixed;inset:0;background:#000b;display:none;align-items:center;justify-content:center;padding:20px;z-index:1000}.modal.open{display:flex}.modal img{max-width:95vw;max-height:90vh;background:white;border-radius:10px}.modal-close{position:absolute;top:16px;right:20px;border:0;border-radius:50%;width:42px;height:42px;font-size:24px;cursor:pointer}.settings-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px}.settings-grid label{font-size:13px;font-weight:700}.settings-grid input{width:100%;margin-top:7px;padding:11px;border:1px solid #d0d5dd;border-radius:9px}.actions{grid-column:1/-1;display:flex;gap:16px;align-items:center;flex-wrap:wrap}.restart-option{font-size:13px;font-weight:650;color:#475467;display:flex;align-items:center;gap:8px}.restart-option input{width:auto;margin:0}.msg{display:none;padding:11px;border-radius:9px;margin:14px 0}.msg.ok{display:block;background:#ecfdf3;color:#067647}.msg.err{display:block;background:#fef3f2;color:#b42318}
+.filters{display:grid;grid-template-columns:1.2fr 1fr 1fr 1fr 1fr auto;gap:10px;align-items:end}.filters label{font-size:12px;font-weight:750;color:#475467}.filters input,.filters select{width:100%;margin-top:6px;padding:11px 12px;border:1px solid #d0d5dd;border-radius:9px;font:inherit}.btn{border:0;border-radius:9px;padding:11px 14px;font-weight:750;cursor:pointer}.primary{background:var(--primary);color:#fff}.danger{background:var(--danger);color:#fff}.stats{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}.stat{padding:16px;border:1px solid var(--line);border-radius:12px;background:#fafbff}.stat b{display:block;font-size:23px;margin-top:5px}.job{border:1px solid var(--line);border-radius:16px;padding:18px;margin-top:14px}.job-head{display:flex;justify-content:space-between;gap:15px}.job-title{font-weight:800}.job-meta{font-size:13px;color:#667085;margin-top:5px}.section{margin-top:15px}.section h3{font-size:15px;margin:0 0 10px}.selection-toolbar{display:flex;align-items:center;justify-content:space-between;gap:12px;margin:0 0 16px;padding:12px 14px;background:#fff;border:1px solid #e4e7ec;border-radius:12px}.select-file{position:absolute;left:12px;top:12px;width:19px;height:19px;z-index:2;cursor:pointer}.file-card{position:relative}.file-card.selected{outline:2px solid #635bff}.file-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:12px}.file-card{position:relative;border:1px solid var(--line);border-radius:11px;padding:9px;background:#fafafa;overflow:visible}.file-card img{width:100%;height:145px;object-fit:contain;background:#fff;border-radius:8px;cursor:zoom-in}.file-name{font-size:13px;word-break:break-word;margin-top:7px}.file-meta{font-size:12px;color:#667085;margin-top:3px}.file-actions{margin-top:6px}.file-actions a{color:#4f46e5;text-decoration:none;font-size:13px}.zip{margin-top:15px;padding:12px;border:1px dashed #d0d5dd;border-radius:10px}.empty{padding:45px;text-align:center;color:#667085}.modal{position:fixed;inset:0;background:#000b;display:none;align-items:center;justify-content:center;padding:20px;z-index:1000}.modal.open{display:flex}.modal img{max-width:95vw;max-height:90vh;background:white;border-radius:10px}.modal-close{position:absolute;top:16px;right:20px;border:0;border-radius:50%;width:42px;height:42px;font-size:24px;cursor:pointer}.settings-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px}.settings-grid label{font-size:13px;font-weight:700}.settings-grid input{width:100%;margin-top:7px;padding:11px;border:1px solid #d0d5dd;border-radius:9px}.actions{grid-column:1/-1;display:flex;gap:16px;align-items:center;flex-wrap:wrap}.restart-option{font-size:13px;font-weight:650;color:#475467;display:flex;align-items:center;gap:8px}.restart-option input{width:auto;margin:0}.msg{display:none;padding:11px;border-radius:9px;margin:14px 0}.msg.ok{display:block;background:#ecfdf3;color:#067647}.msg.err{display:block;background:#fef3f2;color:#b42318}
 @media(max-width:900px){.sidebar{width:210px}.main{margin-left:210px;width:calc(100% - 210px);padding:20px}.filters{grid-template-columns:1fr 1fr}.stats{grid-template-columns:1fr 1fr}}
 @media(max-width:650px){.layout{display:block}.sidebar{position:static;width:auto;padding:12px}.brand{padding:5px 8px 12px}.nav{display:flex;overflow:auto}.nav .back{margin:0;border:0;padding:12px}.main{margin:0;width:auto}.top{display:block}.filters,.settings-grid{grid-template-columns:1fr}.stats{grid-template-columns:1fr 1fr}.actions{grid-column:auto}}
 </style></head><body>
@@ -513,7 +513,7 @@ body{margin:0;font-family:Inter,system-ui,sans-serif;background:#f4f7fb;color:#1
 </form>
 <div class="subfilters"><a class="tab" href="/admin/images">Tout</a><a class="tab" href="/admin/images?view=uploaded">Envoyées</a><a class="tab" href="/admin/images?view=translated">Traduites</a></div>
 <p class="hint">Les images envoyées sont les fichiers originaux du traitement. Les images traduites sont dans le dossier <code>traduit/</code>.</p></div>
-<div id="jobs"></div></main></div>
+<div class="selection-toolbar"><div><b id="selectionCount">0 fichier sélectionné</b><div class="hint">Coche les images à inclure dans le ZIP.</div></div><button id="zipSelected" class="btn" type="button" disabled>Créer le ZIP</button></div><div id="jobs"></div></main></div>
 <div id="modal" class="modal"><button id="closeModal" type="button">×</button><img id="big" alt="Aperçu"></div>
 <script>
 (function(){
@@ -549,6 +549,27 @@ function fileUrl(item,file,preview){
   return "/api/admin/storage/file?work_id="+encodeURIComponent(item.id)+"&path="+encodeURIComponent(file.name)+(preview?"&preview=1":"");
 }
 function isImage(file){return /\.(jpe?g|png|webp|tiff?)$/i.test(file.name);}
+var selectedFiles={};
+function updateSelectionUI(){
+  var keys=Object.keys(selectedFiles);
+  var count=document.getElementById("selectionCount"),btn=document.getElementById("zipSelected");
+  if(count)count.textContent=keys.length+" fichier"+(keys.length>1?"s":"")+" sélectionné"+(keys.length>1?"s":"");
+  if(btn)btn.disabled=!keys.length;
+  document.querySelectorAll(".file-card").forEach(function(card){var cb=card.querySelector(".select-file");card.classList.toggle("selected",!!(cb&&cb.checked));});
+}
+document.addEventListener("change",function(e){
+  if(!e.target.classList.contains("select-file"))return;
+  var key=e.target.dataset.workId+"|"+e.target.dataset.path;
+  if(e.target.checked)selectedFiles[key]=[e.target.dataset.workId,e.target.dataset.path];
+  else delete selectedFiles[key];
+  updateSelectionUI();
+});
+document.getElementById("zipSelected").addEventListener("click",function(){
+  var keys=Object.keys(selectedFiles);if(!keys.length)return;
+  var form=document.createElement("form");form.method="post";form.action="/admin/storage/zip-selected";form.style.display="none";
+  keys.forEach(function(k){var input=document.createElement("input");input.type="hidden";input.name="file";input.value=JSON.stringify(selectedFiles[k]);form.appendChild(input);});
+  document.body.appendChild(form);form.submit();
+});
 function render(){
   const from=fromEl.value?new Date(fromEl.value+"T00:00:00").getTime()/1000:-Infinity;
   const to=toEl.value?new Date(toEl.value+"T23:59:59").getTime()/1000:Infinity;
@@ -567,7 +588,7 @@ function render(){
     const showUploaded=kind!=="translated", showTranslated=kind!=="uploaded";
     function card(file){
       const preview=fileUrl(item,file,true), download=fileUrl(item,file,false);
-      return '<div class="file-card"><img src="'+preview+'" data-preview="'+preview+'" onclick="window.openImage(this.src)" alt="'+esc(file.name)+'"><div class="file-name">'+esc(file.name)+'</div><div class="file-meta">'+esc(file.size_human)+'</div><div class="file-actions"><a href="'+download+'">Télécharger</a></div><div class="file-menu"><button type="button" onclick="event.stopPropagation();this.parentElement.classList.toggle(&quot;open&quot;)">⋮</button><div class="file-menu-list"><form method="post" action="/admin/storage/'+esc(item.id)+'/rename-form"><input type="hidden" name="path" value="'+esc(file.name)+'"><input name="name" value="'+esc(file.name)+'"><button type="submit">Renommer</button></form><form method="post" action="/api/admin/storage/'+esc(item.id)+'/metadata"><input name="client_ip" value="'+esc((item.metadata||{}).client_ip||"")+'"><input name="created_at" type="datetime-local"><button type="submit">Modifier les données</button></form><form method="post" action="/admin/storage/'+esc(item.id)+'/delete-form"><button type="submit">Supprimer</button></form></div></div></div>';
+      var key=item.id+"|"+file.name; return '<div class="file-card" data-file-key="'+esc(key)+'"><input class="select-file" type="checkbox" data-work-id="'+esc(item.id)+'" data-path="'+esc(file.name)+'" '+(selectedFiles[key]?'checked':'')+' onclick="event.stopPropagation()"><img src="'+preview+'" data-preview="'+preview+'" onclick="window.openImage(this.src)" alt="'+esc(file.name)+'"><div class="file-name">'+esc(file.name)+'</div><div class="file-meta">'+esc(file.size_human)+'</div><div class="file-actions"><a href="'+download+'">Télécharger</a></div><div class="file-menu"><button type="button" onclick="event.stopPropagation();this.parentElement.classList.toggle(&quot;open&quot;)">⋮</button><div class="file-menu-list"><form method="post" action="/admin/storage/'+esc(item.id)+'/rename-form"><input type="hidden" name="path" value="'+esc(file.name)+'"><input name="name" value="'+esc(file.name)+'"><button type="submit">Renommer</button></form><form method="post" action="/api/admin/storage/'+esc(item.id)+'/metadata"><input name="client_ip" value="'+esc((item.metadata||{}).client_ip||"")+'"><input name="created_at" type="datetime-local"><button type="submit">Modifier les données</button></form><form method="post" action="/admin/storage/'+esc(item.id)+'/delete-form"><button type="submit">Supprimer</button></form></div></div></div>';
     }
     let html='<div class="job"><div class="job-head"><div><b>'+esc(item.id)+'</b><div class="meta">'+fmt(item.created)+' · IP '+esc((item.metadata||{}).client_ip||"inconnue")+' · '+esc(item.size_human)+'</div></div><button class="danger delete-job" data-id="'+esc(item.id)+'">Supprimer</button></div>';
     if(showUploaded) html+='<div class="section"><h3>Images envoyées ('+uploaded.length+')</h3><div class="file-grid">'+(uploaded.length?uploaded.map(card).join(""):'<div class="empty">Aucune</div>')+'</div></div>';
@@ -889,6 +910,65 @@ def admin():
         return auth
     return ADMIN_PAGE
 
+
+@app.post("/admin/storage/zip-selected")
+def admin_zip_selected():
+    auth = require_admin_api()
+    if auth:
+        return auth
+    raw = request.form.getlist("file")
+    if not raw:
+        return redirect(url_for("admin_images"))
+    selected = []
+    seen = set()
+    for value in raw:
+        try:
+            wid, relative_name = json.loads(value)
+        except (TypeError, ValueError):
+            continue
+        if not isinstance(wid, str) or not isinstance(relative_name, str):
+            continue
+        work = find_storage_work(wid)
+        if work is None:
+            continue
+        try:
+            root = work.resolve(strict=True)
+            file_path = (work / relative_name).resolve(strict=True)
+            file_path.relative_to(root)
+            if not file_path.is_file() or file_path.suffix.lower() not in ALLOWED:
+                continue
+            key = (wid, relative_name)
+            if key not in seen:
+                seen.add(key)
+                selected.append((wid, relative_name, file_path))
+        except (OSError, ValueError):
+            continue
+    if not selected:
+        return redirect(url_for("admin_images"))
+    tmp = tempfile.NamedTemporaryFile(prefix="traducteur_selection_", suffix=".zip", delete=False)
+    tmp_path = Path(tmp.name)
+    tmp.close()
+    used_names = set()
+    try:
+        with zipfile.ZipFile(tmp_path, "w", zipfile.ZIP_DEFLATED) as z:
+            for wid, relative_name, file_path in selected:
+                base = Path(relative_name).name or "image"
+                arcname = base
+                n = 2
+                while arcname in used_names:
+                    arcname = f"{Path(base).stem}_{n}{Path(base).suffix}"
+                    n += 1
+                used_names.add(arcname)
+                z.write(file_path, arcname=arcname)
+        response = send_file(tmp_path, as_attachment=True, download_name="images_selection.zip", mimetype="application/zip")
+        response.call_on_close(lambda: tmp_path.unlink(missing_ok=True))
+        return response
+    except Exception:
+        try:
+            tmp_path.unlink(missing_ok=True)
+        except OSError:
+            pass
+        return redirect(url_for("admin_images"))
 
 @app.get("/admin/images")
 def admin_images():
