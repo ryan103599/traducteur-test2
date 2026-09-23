@@ -325,7 +325,7 @@ def render_admin_storage_jobs(items, kind="all"):
             for f in group:
                 name = str(f.get("name", ""))
                 p = quote(name, safe="")
-                out.append('<div class="file-card"><img src="/api/admin/storage/file?work_id='+wid+'&path='+p+'&preview=1" onclick="window.openImage(this.src);this.focus()" tabindex="0" alt="'+escape(name, quote=True)+'" loading="lazy"><div class="file-name">'+escape(name)+'</div><div class="file-meta">'+escape(str(f.get("size_human", "")))+'</div><div class="file-actions"><a href="/api/admin/storage/file?work_id='+wid+'&path='+p+'">Télécharger</a></div><div class="file-menu"><button type="button" onclick="event.stopPropagation();this.parentElement.classList.toggle(&quot;open&quot;)">⋮</button><div class="file-menu-list"><form method="post" action="/admin/storage/'+wid+'/rename-form"><input type="hidden" name="path" value="'+escape(name, quote=True)+'"><input name="name" value="'+escape(Path(name).name, quote=True)+'"><button type="submit">Renommer</button></form><form method="post" action="/admin/storage/'+wid+'/metadata-form"><input name="client_ip" placeholder="IP"><input name="created_at" type="datetime-local"><button type="submit">Modifier les données</button></form><form method="post" action="/admin/storage/'+wid+'/delete-file-form"><input type="hidden" name="path" value="'+escape(name, quote=True)+'"><button type="submit">Supprimer</button></form></div></div></div>')
+                out.append('<div class="file-card"><img src="/api/admin/storage/file?work_id='+wid+'&path='+p+'&preview=1" onclick="window.openImage(this.src);this.focus()" tabindex="0" alt="'+escape(name, quote=True)+'" loading="lazy"><div class="file-name">'+escape(name)+'</div><div class="file-meta">'+escape(str(f.get("size_human", "")))+'</div><div class="file-actions"><a href="/api/admin/storage/file?work_id='+wid+'&path='+p+'">Télécharger</a></div><div class="file-menu"><button type="button" onclick="event.stopPropagation();this.parentElement.classList.toggle(&quot;open&quot;)">⋮</button><div class="file-menu-list"><button type="button" onclick="openImageRename(this)" data-work-id="'+wid+'" data-path="'+escape(name, quote=True)+'" data-name="'+escape(Path(name).name, quote=True)+'">Renommer</button><button type="button" onclick="openImageMetadata(this)" data-work-id="'+wid+'" data-ip="'+escape(str(meta.get("client_ip", "inconnue")), quote=True)+'">Modifier les données</button><form method="post" action="/admin/storage/'+wid+'/delete-file-form"><input type="hidden" name="path" value="'+escape(name, quote=True)+'"><button type="submit">Supprimer</button></form></div></div></div>')
             return "".join(out)
         h = '<div class="job"><div class="job-head"><div><b>'+escape(str(item.get("id", "")))+'</b><div class="meta">'+escape(time.strftime("%d/%m/%Y %H:%M:%S", time.localtime(item.get("created", 0))))+' · IP '+escape(str(meta.get("client_ip", "inconnue")))+' · '+escape(str(item.get("size_human", "")))+'</div></div></div>'
         if kind != "translated":
@@ -634,7 +634,11 @@ window.setInterval(function(){
     }).catch(function(){});
 })();
 
-</script></body></html>"""
+</script></body></html><dialog id="imageActionDialog"><form method="dialog" class="image-action-dialog"><h3 id="imageActionTitle"></h3><div id="imageActionBody"></div><div><button type="button" onclick="closeImageAction()">Annuler</button><button type="button" id="imageActionSubmit">Valider</button></div></form></dialog><script>
+function closeImageAction(){document.getElementById('imageActionDialog').close();}
+function openImageRename(b){var d=document.getElementById('imageActionDialog'),body=document.getElementById('imageActionBody'),s=document.getElementById('imageActionSubmit');document.getElementById('imageActionTitle').textContent='Renommer le fichier';body.innerHTML='<label>Nouveau nom</label><input id="imageActionName" type="text">';document.getElementById('imageActionName').value=b.dataset.name||'';s.onclick=function(){var n=document.getElementById('imageActionName').value.trim();if(!n)return;fetch('/admin/storage/'+encodeURIComponent(b.dataset.workId)+'/rename-form',{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:'path='+encodeURIComponent(b.dataset.path)+'&name='+encodeURIComponent(n)}).then(function(){location.reload();});};d.showModal();}
+function openImageMetadata(b){var d=document.getElementById('imageActionDialog'),body=document.getElementById('imageActionBody'),s=document.getElementById('imageActionSubmit');document.getElementById('imageActionTitle').textContent='Modifier les données';body.innerHTML='<label>Adresse IP</label><input id="imageActionIp" type="text"><label>Date et heure</label><input id="imageActionDate" type="datetime-local">';document.getElementById('imageActionIp').value=b.dataset.ip||'';s.onclick=function(){var ip=document.getElementById('imageActionIp').value,dt=document.getElementById('imageActionDate').value;if(!dt){alert('Choisis une date et une heure.');return;}fetch('/admin/storage/'+encodeURIComponent(b.dataset.workId)+'/metadata-form',{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:'client_ip='+encodeURIComponent(ip)+'&created_at='+encodeURIComponent(dt)}).then(function(){location.reload();});};d.showModal();}
+</script>"""
 
 
 CONFIG_ADMIN_PAGE = """<!doctype html><html lang="fr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Administration · Configuration</title><style>
@@ -1271,15 +1275,21 @@ def admin_rename_storage_form(work_id):
     data = request.form.to_dict()
     old_name = str(data.get("path", "")).strip()
     new_name = str(data.get("name", "")).strip()
-    if not old_name or not new_name or "/" in new_name or "\\" in new_name:
-        return redirect(url_for("admin_images"))
     work = find_storage_work(work_id)
+    if work is None or not old_name or not new_name or "/" in new_name or "\\" in new_name:
+        return redirect(url_for("admin_images"))
     try:
+        root = work.resolve(strict=True)
         old_path = (work / old_name).resolve(strict=True)
-        old_path.relative_to(work.resolve(strict=True))
+        old_path.relative_to(root)
+        if not old_path.is_file() or old_path.suffix.lower() not in ALLOWED:
+            return redirect(url_for("admin_images"))
+        if Path(new_name).suffix.lower() not in ALLOWED:
+            new_name += old_path.suffix
         new_path = old_path.with_name(new_name)
-        if old_path.is_file() and old_path.suffix.lower() in ALLOWED and new_path.suffix.lower() in ALLOWED and not new_path.exists():
-            old_path.rename(new_path)
+        if new_path.exists():
+            return redirect(url_for("admin_images"))
+        old_path.rename(new_path)
     except (OSError, ValueError):
         pass
     return redirect(url_for("admin_images"))
