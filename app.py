@@ -325,7 +325,7 @@ def render_admin_storage_jobs(items, kind="all"):
             for f in group:
                 name = str(f.get("name", ""))
                 p = quote(name, safe="")
-                out.append('<div class="file-card"><img src="/api/admin/storage/file?work_id='+wid+'&path='+p+'&preview=1" onclick="window.openImage(this.src);this.focus()" tabindex="0" alt="'+escape(name, quote=True)+'" loading="lazy"><div class="file-name">'+escape(name)+'</div><div class="file-meta">'+escape(str(f.get("size_human", "")))+'</div><div class="file-actions"><a href="/api/admin/storage/file?work_id='+wid+'&path='+p+'">Télécharger</a></div><div class="file-menu"><button type="button" onclick="event.stopPropagation();this.parentElement.classList.toggle(&quot;open&quot;)">⋮</button><div class="file-menu-list"><form method="post" action="/admin/storage/'+wid+'/rename-form"><input type="hidden" name="path" value="'+escape(name, quote=True)+'"><input name="name" value="'+escape(name, quote=True)+'"><button type="submit">Renommer</button></form><form method="post" action="/api/admin/storage/'+wid+'/metadata"><input name="client_ip" placeholder="IP"><input name="created_at" type="datetime-local"><button type="submit">Modifier les données</button></form><form method="post" action="/admin/storage/'+wid+'/delete-form"><button type="submit">Supprimer</button></form></div></div></div>')
+                out.append('<div class="file-card"><img src="/api/admin/storage/file?work_id='+wid+'&path='+p+'&preview=1" onclick="window.openImage(this.src);this.focus()" tabindex="0" alt="'+escape(name, quote=True)+'" loading="lazy"><div class="file-name">'+escape(name)+'</div><div class="file-meta">'+escape(str(f.get("size_human", "")))+'</div><div class="file-actions"><a href="/api/admin/storage/file?work_id='+wid+'&path='+p+'">Télécharger</a></div><div class="file-menu"><button type="button" onclick="event.stopPropagation();this.parentElement.classList.toggle(&quot;open&quot;)">⋮</button><div class="file-menu-list"><form method="post" action="/admin/storage/'+wid+'/rename-form"><input type="hidden" name="path" value="'+escape(name, quote=True)+'"><input name="name" value="'+escape(Path(name).name, quote=True)+'"><button type="submit">Renommer</button></form><form method="post" action="/admin/storage/'+wid+'/metadata-form"><input name="client_ip" placeholder="IP"><input name="created_at" type="datetime-local"><button type="submit">Modifier les données</button></form><form method="post" action="/admin/storage/'+wid+'/delete-file-form"><input type="hidden" name="path" value="'+escape(name, quote=True)+'"><button type="submit">Supprimer</button></form></div></div></div>')
             return "".join(out)
         h = '<div class="job"><div class="job-head"><div><b>'+escape(str(item.get("id", "")))+'</b><div class="meta">'+escape(time.strftime("%d/%m/%Y %H:%M:%S", time.localtime(item.get("created", 0))))+' · IP '+escape(str(meta.get("client_ip", "inconnue")))+' · '+escape(str(item.get("size_human", "")))+'</div></div></div>'
         if kind != "translated":
@@ -1213,6 +1213,54 @@ def admin_rename_storage_file(work_id):
         return jsonify(ok=True)
     except (OSError, ValueError) as exc:
         return jsonify(error=f"Renommage impossible : {exc}"), 400
+
+
+@app.post("/admin/storage/<work_id>/metadata-form")
+def admin_update_storage_metadata_form(work_id):
+    auth = require_admin_api()
+    if auth:
+        return auth
+    work = find_storage_work(work_id)
+    if work is None:
+        return redirect(url_for("admin_images"))
+    data = request.form.to_dict()
+    try:
+        metadata_path = work / "metadata.json"
+        metadata = {}
+        if metadata_path.is_file():
+            metadata = json.loads(metadata_path.read_text(encoding="utf-8"))
+        if "client_ip" in data:
+            metadata["client_ip"] = str(data.get("client_ip", "")).strip() or "inconnue"
+        if str(data.get("created_at", "")).strip():
+            timestamp = time.mktime(time.strptime(str(data["created_at"]).strip(), "%Y-%m-%dT%H:%M"))
+            os.utime(work, (timestamp, timestamp))
+            metadata["created_at"] = timestamp
+        metadata_path.write_text(json.dumps(metadata, ensure_ascii=False, indent=2), encoding="utf-8")
+    except (OSError, ValueError, TypeError):
+        pass
+    return redirect(url_for("admin_images"))
+
+
+@app.post("/admin/storage/<work_id>/delete-file-form")
+def admin_delete_storage_file_form(work_id):
+    auth = require_admin_api()
+    if auth:
+        return auth
+    work = find_storage_work(work_id)
+    if work is None:
+        return redirect(url_for("admin_images"))
+    relative_name = str(request.form.get("path", "")).strip()
+    try:
+        work_resolved = work.resolve(strict=True)
+        file_path = (work / relative_name).resolve(strict=True)
+        file_path.relative_to(work_resolved)
+        if file_path.is_file() and file_path.suffix.lower() in ALLOWED:
+            file_path.unlink()
+        if work.is_dir() and not any(work.iterdir()):
+            work.rmdir()
+    except (OSError, ValueError):
+        pass
+    return redirect(url_for("admin_images"))
 
 
 @app.post("/admin/storage/<work_id>/rename-form")
