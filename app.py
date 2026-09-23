@@ -489,7 +489,8 @@ body{margin:0;font-family:Inter,system-ui,sans-serif;background:#f4f7fb;color:#1
 <script>
 (function(){
 "use strict";
-let all=[]; let kind="all";
+var all=__INITIAL_STORAGE__;
+var kind="all";
 const fromEl=document.getElementById("from"), toEl=document.getElementById("to"), ipEl=document.getElementById("ip");
 const minEl=document.getElementById("min"), maxEl=document.getElementById("max"), jobs=document.getElementById("jobs");
 const modal=document.getElementById("modal"), big=document.getElementById("big");
@@ -534,18 +535,17 @@ function render(){
   jobs.querySelectorAll("img[data-preview]").forEach(function(img){img.addEventListener("click",function(){big.src=img.dataset.preview;modal.classList.add("open");});});
   jobs.querySelectorAll(".delete-job").forEach(function(btn){btn.addEventListener("click",function(){removeItem(btn.dataset.id);});});
 }
-async function load(){
-  try{
-    const requested=new URLSearchParams(window.location.search).get("work_id");
-    const endpoint=requested?"/api/admin/storage/"+encodeURIComponent(requested):"/api/admin/storage";
-    const response=await fetch(endpoint,{cache:"no-store"});
-    const data=await response.json();
-    if(!response.ok) throw new Error(data.error||"Erreur "+response.status);
-    all=requested?(data.item?[data.item]:[]):(data.items||[]);
-    render();
-  }catch(error){
-    all=[]; jobs.innerHTML='<div class="empty">Impossible de charger les images : '+esc(error.message)+'</div>';
+function load(){
+  var requested=new URLSearchParams(window.location.search).get("work_id");
+  if(requested){
+    var found=all.filter(function(item){return item.id===requested;});
+    if(!found.length){
+      jobs.innerHTML='<div class="empty">Ce traitement n’existe plus dans /tmp.</div>';
+      return;
+    }
+    all=found;
   }
+  render();
 }
 async function removeItem(id){
   if(!window.confirm("Supprimer définitivement ce dossier et toutes ses images ?"))return;
@@ -557,8 +557,19 @@ document.querySelectorAll(".tab").forEach(function(btn){btn.addEventListener("cl
 });});
 document.getElementById("closeModal").addEventListener("click",function(){modal.classList.remove("open");big.src="";});
 modal.addEventListener("click",function(e){if(e.target===modal){modal.classList.remove("open");big.src="";}});
-load(); window.setInterval(load,10000);
+render();
+window.setInterval(function(){
+  fetch("/api/admin/storage",{cache:"no-store"})
+    .then(function(response){return response.ok?response.json():null;})
+    .then(function(data){
+      if(data && data.items){
+        var requested=new URLSearchParams(window.location.search).get("work_id");
+        all=requested?data.items.filter(function(item){return item.id===requested;}):data.items;
+        render();
+      }
+    }).catch(function(){});
 })();
+
 </script></body></html>"""
 
 
@@ -816,7 +827,15 @@ def admin_images():
     auth = require_admin_page()
     if auth:
         return auth
-    return IMAGES_ADMIN_PAGE
+    try:
+        initial_items = list_stored_files()
+    except Exception:
+        app.logger.exception("Impossible de charger le stockage pour /admin/images")
+        initial_items = []
+    return IMAGES_ADMIN_PAGE.replace(
+        "__INITIAL_STORAGE__",
+        json.dumps(initial_items, ensure_ascii=False, separators=(",", ":")),
+    )
 
 
 @app.get("/admin/config")
