@@ -496,7 +496,7 @@ const minEl=document.getElementById("min"), maxEl=document.getElementById("max")
 const modal=document.getElementById("modal"), big=document.getElementById("big");
 
 function esc(value){
-  return String(value ?? "").replace(/[&<>"']/g,function(c){
+  return String(value == null ? "" : value).replace(/[&<>"']/g,function(c){
     return {"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[c];
   });
 }
@@ -536,8 +536,9 @@ function render(){
   jobs.querySelectorAll(".delete-job").forEach(function(btn){btn.addEventListener("click",function(){removeItem(btn.dataset.id);});});
 }
 function load(){
-  var requested=new URLSearchParams(window.location.search).get("work_id");
+  var requested=(window.location.search.match(/[?&]work_id=([^&]+)/)||[])[1]||"";
   if(requested){
+    try{requested=decodeURIComponent(requested);}catch(e){}
     var found=all.filter(function(item){return item.id===requested;});
     if(!found.length){
       jobs.innerHTML='<div class="empty">Ce traitement n’existe plus dans /tmp.</div>';
@@ -563,7 +564,8 @@ window.setInterval(function(){
     .then(function(response){return response.ok?response.json():null;})
     .then(function(data){
       if(data && data.items){
-        var requested=new URLSearchParams(window.location.search).get("work_id");
+        var requested=(window.location.search.match(/[?&]work_id=([^&]+)/)||[])[1]||"";
+        try{requested=decodeURIComponent(requested);}catch(e){}
         all=requested?data.items.filter(function(item){return item.id===requested;}):data.items;
         render();
       }
@@ -832,10 +834,15 @@ def admin_images():
     except Exception:
         app.logger.exception("Impossible de charger le stockage pour /admin/images")
         initial_items = []
-    return IMAGES_ADMIN_PAGE.replace(
-        "__INITIAL_STORAGE__",
-        json.dumps(initial_items, ensure_ascii=False, separators=(",", ":")),
+    initial_json = json.dumps(initial_items, ensure_ascii=False, separators=(",", ":"))
+    # Sécurise l'injection JSON dans la balise <script>.
+    initial_json = initial_json.replace("<", "\\u003c").replace(">", "\\u003e").replace("&", "\\u0026")
+    page = IMAGES_ADMIN_PAGE.replace("__INITIAL_STORAGE__", initial_json)
+    page = page.replace(
+        '<div id="jobs"></div>',
+        '<div id="jobs"><div class="empty">Chargement des images…</div></div>',
     )
+    return page
 
 
 @app.get("/admin/config")
