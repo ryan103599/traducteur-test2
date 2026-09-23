@@ -567,7 +567,7 @@ function render(){
     const showUploaded=kind!=="translated", showTranslated=kind!=="uploaded";
     function card(file){
       const preview=fileUrl(item,file,true), download=fileUrl(item,file,false);
-      return '<div class="file-card"><img src="'+preview+'" data-preview="'+preview+'" onclick="window.openImage(this.src)" alt="'+esc(file.name)+'"><div class="file-name">'+esc(file.name)+'</div><div class="file-meta">'+esc(file.size_human)+'</div><div class="file-actions"><a href="'+download+'">Télécharger</a></div><div class="file-menu"><button type="button" onclick="event.stopPropagation();this.parentElement.classList.toggle(&quot;open&quot;)">⋮</button><div class="file-menu-list" onclick="event.stopPropagation()"><button type="button" data-action="rename" data-id="'+esc(item.id)+'" data-path="'+esc(file.name)+'" onclick="event.stopPropagation();window.renameFile(this.dataset.id,this.dataset.path)">Renommer</button><button type="button" data-action="edit-meta" data-id="'+esc(item.id)+'" onclick="event.stopPropagation();window.editMeta(this.dataset.id)">Modifier les données</button><button type="button" data-action="delete" data-id="'+esc(item.id)+'" onclick="event.stopPropagation();window.removeItem(this.dataset.id)">Supprimer</button></div></div></div>';
+      return '<div class="file-card"><img src="'+preview+'" data-preview="'+preview+'" onclick="window.openImage(this.src)" alt="'+esc(file.name)+'"><div class="file-name">'+esc(file.name)+'</div><div class="file-meta">'+esc(file.size_human)+'</div><div class="file-actions"><a href="'+download+'">Télécharger</a></div><div class="file-menu"><button type="button" onclick="event.stopPropagation();this.parentElement.classList.toggle(&quot;open&quot;)">⋮</button><div class="file-menu-list" onclick="event.stopPropagation()"><button type="button" data-action="rename" data-id="'+esc(item.id)+'" data-path="'+esc(file.name)+'" onclick="return window.renameFile(this.dataset.id,this.dataset.path)">Renommer</button><button type="button" data-action="edit-meta" data-id="'+esc(item.id)+'" onclick="return window.editMeta(this.dataset.id)">Modifier les données</button><button type="button" data-action="delete" data-id="'+esc(item.id)+'" onclick="return window.removeItem(this.dataset.id)">Supprimer</button></div></div></div>';
     }
     let html='<div class="job"><div class="job-head"><div><b>'+esc(item.id)+'</b><div class="meta">'+fmt(item.created)+' · IP '+esc((item.metadata||{}).client_ip||"inconnue")+' · '+esc(item.size_human)+'</div></div><button class="danger delete-job" data-id="'+esc(item.id)+'">Supprimer</button></div>';
     if(showUploaded) html+='<div class="section"><h3>Images envoyées ('+uploaded.length+')</h3><div class="file-grid">'+(uploaded.length?uploaded.map(card).join(""):'<div class="empty">Aucune</div>')+'</div></div>';
@@ -596,9 +596,9 @@ function load(){
 }
 window.renameFile=async function(id,path){
   var old=path.split("/").pop(), name=window.prompt("Nouveau nom du fichier :",old);
-  if(!name||name===old)return;
+  if(!name||name===old)return false;
   var r=await fetch("/api/admin/storage/"+encodeURIComponent(id)+"/rename",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({path:path,name:name})});
-  var d=await r.json(); if(!r.ok){alert(d.error||"Renommage impossible.");return;} load();
+  var d=await r.json(); if(!r.ok){alert(d.error||"Renommage impossible.");return false;} load(); return false;
 }
 window.editMeta=async function(id){
   var item=all.find(function(x){return x.id===id;}); if(!item)return;
@@ -607,11 +607,11 @@ window.editMeta=async function(id){
   var cur=d.getFullYear()+"-"+pad(d.getMonth()+1)+"-"+pad(d.getDate())+"T"+pad(d.getHours())+":"+pad(d.getMinutes());
   var date=window.prompt("Date et heure (AAAA-MM-JJTHH:MM) :",cur); if(date===null)return;
   var r=await fetch("/api/admin/storage/"+encodeURIComponent(id)+"/metadata",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({client_ip:ip,created_at:date})});
-  var data=await r.json(); if(!r.ok){alert(data.error||"Modification impossible.");return;} load();
+  var data=await r.json(); if(!r.ok){alert(data.error||"Modification impossible.");return false;} load(); return false;
 }
 window.removeItem=async function(id){
-  if(!window.confirm("Supprimer définitivement ce dossier et toutes ses images ?"))return;
-  try{await fetch("/api/admin/storage/"+encodeURIComponent(id),{method:"DELETE"});}finally{load();}
+  if(!window.confirm("Supprimer définitivement ce dossier et toutes ses images ?"))return false;
+  try{await fetch("/api/admin/storage/"+encodeURIComponent(id),{method:"DELETE"});}finally{load();} return false;
 }
 document.querySelector(".filters").addEventListener("submit",function(e){e.preventDefault();render();});
 document.querySelectorAll(".tab").forEach(function(btn){btn.addEventListener("click",function(){
