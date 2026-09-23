@@ -594,13 +594,13 @@ function load(){
   }
   render();
 }
-async function renameFile(id,path){
+window.renameFile=async function(id,path){
   var old=path.split("/").pop(), name=window.prompt("Nouveau nom du fichier :",old);
   if(!name||name===old)return;
   var r=await fetch("/api/admin/storage/"+encodeURIComponent(id)+"/rename",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({path:path,name:name})});
   var d=await r.json(); if(!r.ok){alert(d.error||"Renommage impossible.");return;} load();
 }
-async function editMeta(id){
+window.editMeta=async function(id){
   var item=all.find(function(x){return x.id===id;}); if(!item)return;
   var ip=window.prompt("Adresse IP :",String((item.metadata||{}).client_ip||"")); if(ip===null)return;
   var d=new Date(item.created*1000), pad=function(n){return String(n).padStart(2,"0");};
@@ -609,7 +609,7 @@ async function editMeta(id){
   var r=await fetch("/api/admin/storage/"+encodeURIComponent(id)+"/metadata",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({client_ip:ip,created_at:date})});
   var data=await r.json(); if(!r.ok){alert(data.error||"Modification impossible.");return;} load();
 }
-async function removeItem(id){
+window.removeItem=async function(id){
   if(!window.confirm("Supprimer définitivement ce dossier et toutes ses images ?"))return;
   try{await fetch("/api/admin/storage/"+encodeURIComponent(id),{method:"DELETE"});}finally{load();}
 }
