@@ -1,5 +1,6 @@
 import hmac
 from html import escape
+from html import escape
 import json
 import os
 import shutil
@@ -9,6 +10,7 @@ import threading
 import time
 import uuid
 import zipfile
+from urllib.parse import quote
 from urllib.parse import quote
 from pathlib import Path
 
@@ -323,7 +325,7 @@ def render_admin_storage_jobs(items, kind="all"):
             for f in group:
                 name = str(f.get("name", ""))
                 p = quote(name, safe="")
-                out.append('<div class="file-card"><img src="/api/admin/storage/file?work_id='+wid+'&path='+p+'&preview=1" alt="'+escape(name, quote=True)+'" loading="lazy"><div class="file-name">'+escape(name)+'</div><div class="file-meta">'+escape(str(f.get("size_human", "")))+'</div><div class="file-actions"><a href="/api/admin/storage/file?work_id='+wid+'&path='+p+'">Télécharger</a></div></div>')
+                out.append('<div class="file-card"><img src="/api/admin/storage/file?work_id='+wid+'&path='+p+'&preview=1" alt="'+escape(name, quote=True)+'" loading="lazy"><div class="file-name">'+escape(name)+'</div><div class="file-meta">'+escape(str(f.get("size_human", "")))+'</div><div class="file-actions"><a href="/api/admin/storage/file?work_id='+wid+'&path='+p+'">Télécharger</a></div><div class="file-menu"><button type="button">⋮</button><div class="file-menu-list"><button type="button" data-action="rename" data-id="'+wid+'" data-path="'+escape(name, quote=True)+'">Renommer</button><button type="button" data-action="edit-meta" data-id="'+wid+'">Modifier les données</button><button type="button" data-action="delete" data-id="'+wid+'">Supprimer</button></div></div></div>')
             return "".join(out)
         h = '<div class="job"><div class="job-head"><div><b>'+escape(str(item.get("id", "")))+'</b><div class="meta">'+escape(time.strftime("%d/%m/%Y %H:%M:%S", time.localtime(item.get("created", 0))))+' · IP '+escape(str(meta.get("client_ip", "inconnue")))+' · '+escape(str(item.get("size_human", "")))+'</div></div></div>'
         if kind != "translated":
@@ -496,7 +498,7 @@ body{margin:0;font-family:Inter,system-ui,sans-serif;background:#f4f7fb;color:#1
 .filters{display:grid;grid-template-columns:1.2fr 1fr 1fr 1fr 1fr auto;gap:9px;align-items:end}.filters label{font-size:12px;font-weight:750}.filters input{width:100%;margin-top:6px;padding:10px;border:1px solid #d0d5dd;border-radius:9px;box-sizing:border-box}
 .btn{border:0;border-radius:9px;padding:10px 14px;background:#635bff;color:#fff;font-weight:750;cursor:pointer}.subfilters{display:flex;gap:8px;margin-top:12px}.tab{border:1px solid #d0d5dd;background:#fff;padding:8px 12px;border-radius:9px;cursor:pointer}.tab.active{background:#eef4ff;color:#3538cd;border-color:#c7d7fe}
 .job-head{display:flex;justify-content:space-between;gap:12px}.meta{color:#667085;font-size:13px;margin-top:5px}.section{margin-top:15px}.section h3{font-size:15px;margin:0 0 10px}
-.file-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:12px;margin-top:10px}.file-card{border:1px solid #e4e7ec;border-radius:11px;padding:9px;background:#fafafa}.file-card img{width:100%;height:145px;object-fit:contain;background:white;border-radius:8px;cursor:zoom-in}.file-name{font-size:13px;word-break:break-word;margin-top:7px}.file-meta{font-size:12px;color:#667085}.file-actions{margin-top:6px}.file-actions a{color:#4f46e5;text-decoration:none}
+.file-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:12px;margin-top:10px}.file-card{border:1px solid #e4e7ec;border-radius:11px;padding:9px;background:#fafafa}.file-card{position:relative}.file-card img{width:100%;height:145px;object-fit:contain;background:white;border-radius:8px;cursor:zoom-in}.file-menu{position:absolute;right:14px;bottom:48px}.file-menu>button{border:0;background:#fff;width:32px;height:32px;border-radius:50%;box-shadow:0 2px 8px #0003;font-size:20px;cursor:pointer}.file-menu-list{display:none;position:absolute;right:0;bottom:36px;background:#fff;border:1px solid #d0d5dd;border-radius:10px;box-shadow:0 8px 24px #0002;min-width:150px;padding:5px;z-index:10}.file-menu.open .file-menu-list{display:block}.file-menu-list button{display:block;width:100%;border:0;background:#fff;text-align:left;padding:9px;border-radius:7px;cursor:pointer}.file-menu-list button:hover{background:#f2f4f7}.file-name{font-size:13px;word-break:break-word;margin-top:7px}.file-meta{font-size:12px;color:#667085}.file-actions{margin-top:6px}.file-actions a{color:#4f46e5;text-decoration:none}
 .danger{border:0;border-radius:8px;padding:9px 12px;background:#b42318;color:#fff;cursor:pointer}.zip{margin-top:14px;padding:11px;border:1px dashed #d0d5dd}.empty{text-align:center;padding:40px;color:#667085}.hint{font-size:12px;color:#667085}
 .modal{position:fixed;inset:0;background:#000b;display:none;align-items:center;justify-content:center;z-index:20}.modal.open{display:flex}.modal img{max-width:95vw;max-height:90vh;background:#fff}.modal button{position:absolute;right:20px;top:15px;border:0;border-radius:50%;width:42px;height:42px;font-size:24px;cursor:pointer}
 @media(max-width:900px){.sidebar{width:210px}.main{margin-left:210px;width:calc(100% - 210px);padding:20px}.filters{grid-template-columns:1fr 1fr}}
@@ -550,7 +552,7 @@ function render(){
     const showUploaded=kind!=="translated", showTranslated=kind!=="uploaded";
     function card(file){
       const preview=fileUrl(item,file,true), download=fileUrl(item,file,false);
-      return '<div class="file-card"><img src="'+preview+'" data-preview="'+preview+'" alt="'+esc(file.name)+'"><div class="file-name">'+esc(file.name)+'</div><div class="file-meta">'+esc(file.size_human)+'</div><div class="file-actions"><a href="'+download+'">Télécharger</a></div></div>';
+      return '<div class="file-card"><img src="'+preview+'" data-preview="'+preview+'" alt="'+esc(file.name)+'"><div class="file-name">'+esc(file.name)+'</div><div class="file-meta">'+esc(file.size_human)+'</div><div class="file-actions"><a href="'+download+'">Télécharger</a></div><div class="file-menu"><button type="button">⋮</button><div class="file-menu-list"><button type="button" data-action="rename" data-id="'+esc(item.id)+'" data-path="'+esc(file.name)+'">Renommer</button><button type="button" data-action="edit-meta" data-id="'+esc(item.id)+'">Modifier les données</button><button type="button" data-action="delete" data-id="'+esc(item.id)+'">Supprimer</button></div></div></div>';
     }
     let html='<div class="job"><div class="job-head"><div><b>'+esc(item.id)+'</b><div class="meta">'+fmt(item.created)+' · IP '+esc((item.metadata||{}).client_ip||"inconnue")+' · '+esc(item.size_human)+'</div></div><button class="danger delete-job" data-id="'+esc(item.id)+'">Supprimer</button></div>';
     if(showUploaded) html+='<div class="section"><h3>Images envoyées ('+uploaded.length+')</h3><div class="file-grid">'+(uploaded.length?uploaded.map(card).join(""):'<div class="empty">Aucune</div>')+'</div></div>';
@@ -560,6 +562,8 @@ function render(){
     return html;
   }).join("");
   jobs.querySelectorAll(".file-card img").forEach(function(img){img.addEventListener("click",function(){big.src=img.getAttribute("src");modal.classList.add("open");});});
+  jobs.querySelectorAll(".file-menu>button").forEach(function(btn){btn.addEventListener("click",function(e){e.stopPropagation();var menu=btn.parentElement;document.querySelectorAll(".file-menu.open").forEach(function(m){if(m!==menu)m.classList.remove("open");});menu.classList.toggle("open");});});
+  jobs.querySelectorAll(".file-menu-list button").forEach(function(btn){btn.addEventListener("click",function(e){e.stopPropagation();var a=btn.dataset.action;if(a==="rename")renameFile(btn.dataset.id,btn.dataset.path);if(a==="edit-meta")editMeta(btn.dataset.id);if(a==="delete")removeItem(btn.dataset.id);});});
   jobs.querySelectorAll(".delete-job").forEach(function(btn){btn.addEventListener("click",function(){removeItem(btn.dataset.id);});});
 }
 function load(){
@@ -574,6 +578,21 @@ function load(){
     all=found;
   }
   render();
+}
+async function renameFile(id,path){
+  var old=path.split("/").pop(), name=window.prompt("Nouveau nom du fichier :",old);
+  if(!name||name===old)return;
+  var r=await fetch("/api/admin/storage/"+encodeURIComponent(id)+"/rename",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({path:path,name:name})});
+  var d=await r.json(); if(!r.ok){alert(d.error||"Renommage impossible.");return;} load();
+}
+async function editMeta(id){
+  var item=all.find(function(x){return x.id===id;}); if(!item)return;
+  var ip=window.prompt("Adresse IP :",String((item.metadata||{}).client_ip||"")); if(ip===null)return;
+  var d=new Date(item.created*1000), pad=function(n){return String(n).padStart(2,"0");};
+  var cur=d.getFullYear()+"-"+pad(d.getMonth()+1)+"-"+pad(d.getDate())+"T"+pad(d.getHours())+":"+pad(d.getMinutes());
+  var date=window.prompt("Date et heure (AAAA-MM-JJTHH:MM) :",cur); if(date===null)return;
+  var r=await fetch("/api/admin/storage/"+encodeURIComponent(id)+"/metadata",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({client_ip:ip,created_at:date})});
+  var data=await r.json(); if(!r.ok){alert(data.error||"Modification impossible.");return;} load();
 }
 async function removeItem(id){
   if(!window.confirm("Supprimer définitivement ce dossier et toutes ses images ?"))return;
@@ -1122,6 +1141,62 @@ def admin_get_storage(work_id):
         "metadata": metadata,
     }
     return jsonify(item=item)
+
+
+@app.post("/api/admin/storage/<work_id>/metadata")
+def admin_update_storage_metadata(work_id):
+    auth = require_admin_api()
+    if auth:
+        return auth
+    work = find_storage_work(work_id)
+    if work is None:
+        return jsonify(error="Dossier introuvable."), 404
+    data = request.get_json(silent=True) or {}
+    try:
+        metadata = {}
+        metadata_path = work / "metadata.json"
+        if metadata_path.is_file():
+            metadata = json.loads(metadata_path.read_text(encoding="utf-8"))
+        if "client_ip" in data:
+            metadata["client_ip"] = str(data["client_ip"]).strip() or "inconnue"
+        if "created_at" in data:
+            value = str(data["created_at"]).strip()
+            timestamp = time.mktime(time.strptime(value, "%Y-%m-%dT%H:%M"))
+            os.utime(work, (timestamp, timestamp))
+            metadata["created_at"] = timestamp
+        metadata_path.write_text(json.dumps(metadata, ensure_ascii=False, indent=2), encoding="utf-8")
+        return jsonify(ok=True)
+    except (OSError, ValueError, TypeError) as exc:
+        return jsonify(error=f"Modification impossible : {exc}"), 400
+
+
+@app.post("/api/admin/storage/<work_id>/rename")
+def admin_rename_storage_file(work_id):
+    auth = require_admin_api()
+    if auth:
+        return auth
+    work = find_storage_work(work_id)
+    if work is None:
+        return jsonify(error="Dossier introuvable."), 404
+    data = request.get_json(silent=True) or {}
+    old_name = str(data.get("path", "")).strip()
+    new_name = str(data.get("name", "")).strip()
+    if not old_name or not new_name or "/" in new_name or "\\" in new_name:
+        return jsonify(error="Nom de fichier invalide."), 400
+    try:
+        old_path = (work / old_name).resolve(strict=True)
+        old_path.relative_to(work.resolve(strict=True))
+        if not old_path.is_file() or old_path.suffix.lower() not in ALLOWED:
+            return jsonify(error="Fichier image introuvable."), 404
+        new_path = old_path.with_name(new_name)
+        if new_path.suffix.lower() not in ALLOWED:
+            return jsonify(error="L'extension doit rester une extension d'image valide."), 400
+        if new_path.exists():
+            return jsonify(error="Un fichier porte déjà ce nom."), 409
+        old_path.rename(new_path)
+        return jsonify(ok=True)
+    except (OSError, ValueError) as exc:
+        return jsonify(error=f"Renommage impossible : {exc}"), 400
 
 
 @app.delete("/api/admin/storage/<work_id>")
