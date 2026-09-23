@@ -1194,7 +1194,7 @@ def admin_rename_storage_file(work_id):
     work = find_storage_work(work_id)
     if work is None:
         return jsonify(error="Dossier introuvable."), 404
-    data = request.get_json(silent=True) or {}
+    data = request.get_json(silent=True) or request.form.to_dict()
     old_name = str(data.get("path", "")).strip()
     new_name = str(data.get("name", "")).strip()
     if not old_name or not new_name or "/" in new_name or "\\" in new_name:
@@ -1213,6 +1213,28 @@ def admin_rename_storage_file(work_id):
         return jsonify(ok=True)
     except (OSError, ValueError) as exc:
         return jsonify(error=f"Renommage impossible : {exc}"), 400
+
+
+@app.post("/admin/storage/<work_id>/rename-form")
+def admin_rename_storage_form(work_id):
+    auth = require_admin_api()
+    if auth:
+        return auth
+    data = request.form.to_dict()
+    old_name = str(data.get("path", "")).strip()
+    new_name = str(data.get("name", "")).strip()
+    if not old_name or not new_name or "/" in new_name or "\\" in new_name:
+        return redirect(url_for("admin_images"))
+    work = find_storage_work(work_id)
+    try:
+        old_path = (work / old_name).resolve(strict=True)
+        old_path.relative_to(work.resolve(strict=True))
+        new_path = old_path.with_name(new_name)
+        if old_path.is_file() and old_path.suffix.lower() in ALLOWED and new_path.suffix.lower() in ALLOWED and not new_path.exists():
+            old_path.rename(new_path)
+    except (OSError, ValueError):
+        pass
+    return redirect(url_for("admin_images"))
 
 
 @app.delete("/api/admin/storage/<work_id>")
