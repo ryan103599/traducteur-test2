@@ -559,7 +559,7 @@ function render(){
     html+='<div class="zip">'+(zips.length?zips.map(function(z){return '<a href="'+fileUrl(item,z,false)+'">Télécharger '+esc(z.name)+'</a>';}).join(" · "):"Aucun ZIP")+'</div></div>';
     return html;
   }).join("");
-  jobs.querySelectorAll("img[data-preview]").forEach(function(img){img.addEventListener("click",function(){big.src=img.dataset.preview;modal.classList.add("open");});});
+  jobs.querySelectorAll(".file-card img").forEach(function(img){img.addEventListener("click",function(){big.src=img.getAttribute("src");modal.classList.add("open");});});
   jobs.querySelectorAll(".delete-job").forEach(function(btn){btn.addEventListener("click",function(){removeItem(btn.dataset.id);});});
 }
 function load(){
@@ -579,9 +579,9 @@ async function removeItem(id){
   if(!window.confirm("Supprimer définitivement ce dossier et toutes ses images ?"))return;
   try{await fetch("/api/admin/storage/"+encodeURIComponent(id),{method:"DELETE"});}finally{load();}
 }
-document.getElementById("filter").addEventListener("click",render);
+document.querySelector(".filters").addEventListener("submit",function(e){e.preventDefault();render();});
 document.querySelectorAll(".tab").forEach(function(btn){btn.addEventListener("click",function(){
-  kind=btn.dataset.f; document.querySelectorAll(".tab").forEach(function(x){x.classList.toggle("active",x===btn);}); render();
+  if(btn.dataset.f){kind=btn.dataset.f; document.querySelectorAll(".tab").forEach(function(x){x.classList.toggle("active",x===btn);}); render();}
 });});
 document.getElementById("closeModal").addEventListener("click",function(){modal.classList.remove("open");big.src="";});
 modal.addEventListener("click",function(e){if(e.target===modal){modal.classList.remove("open");big.src="";}});
@@ -861,10 +861,34 @@ def admin_images():
     if view not in {"all", "uploaded", "translated"}:
         view = "all"
     ip = request.args.get("ip", "").strip().lower()
+    start = request.args.get("from", "")
+    end = request.args.get("to", "")
+    try:
+        min_size = max(0, float(request.args.get("min", "0") or 0)) * 1024
+    except (TypeError, ValueError):
+        min_size = 0
+    try:
+        max_size = float(request.args.get("max", "") or "inf") * 1024
+    except (TypeError, ValueError):
+        max_size = float("inf")
     filtered = []
     for item in initial_items:
         if ip and ip not in str((item.get("metadata") or {}).get("client_ip", "")).lower():
             continue
+        if item.get("size", 0) < min_size or item.get("size", 0) > max_size:
+            continue
+        if start:
+            try:
+                if item.get("created", 0) < time.mktime(time.strptime(start, "%Y-%m-%d")):
+                    continue
+            except ValueError:
+                pass
+        if end:
+            try:
+                if item.get("created", 0) > time.mktime(time.strptime(end, "%Y-%m-%d")) + 86399:
+                    continue
+            except ValueError:
+                pass
         filtered.append(item)
     initial_json = json.dumps(initial_items, ensure_ascii=False, separators=(",", ":"))
     initial_json = initial_json.replace("<", "\\u003c").replace(">", "\\u003e").replace("&", "\\u0026")
