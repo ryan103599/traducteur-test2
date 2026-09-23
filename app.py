@@ -434,7 +434,7 @@ async function refreshUsage(){try{const r=await fetch("/api/lara-usage");const r
 files.addEventListener("change",()=>{const n=[...files.files].filter(f=>/\\.(jpe?g|png|webp|tiff?)$/i.test(f.name)).length; if(n)setStatus(n+" image"+(n>1?"s":"")+" sélectionnée"+(n>1?"s":"")+" — prête à être traduite.")});
 refreshUsage();
 start.onclick=async()=>{
- const selected=[...files.files].filter(f=>/\.(jpe?g|png|webp|tiff?)$/i.test(f.name));
+ const selected=[...files.files].filter(f=>/\\.(jpe?g|png|webp|tiff?)$/i.test(f.name));
  if(!selected.length){setStatus("Choisis un dossier contenant des images.","err");return}
  start.disabled=true;download.style.display="none";if(downloadPending)downloadPending.style.display="none";setStatus("Envoi des images…");
  const fd=new FormData();fd.append("source",source.value);fd.append("target",lang.value);selected.forEach(f=>fd.append("files",f,f.webkitRelativePath||f.name));
@@ -548,7 +548,7 @@ function fmt(ts){return new Date(ts*1000).toLocaleString("fr-FR");}
 function fileUrl(item,file,preview){
   return "/api/admin/storage/file?work_id="+encodeURIComponent(item.id)+"&path="+encodeURIComponent(file.name)+(preview?"&preview=1":"");
 }
-function isImage(file){return /\.(jpe?g|png|webp|tiff?)$/i.test(file.name);}
+function isImage(file){return /\\.(jpe?g|png|webp|tiff?)$/i.test(file.name);}
 var selectedFiles={};
 function updateSelectionUI(){
   var keys=Object.keys(selectedFiles);
@@ -593,7 +593,7 @@ function render(){
     let html='<div class="job"><div class="job-head"><div><b>'+esc(item.id)+'</b><div class="meta">'+fmt(item.created)+' · IP '+esc((item.metadata||{}).client_ip||"inconnue")+' · '+esc(item.size_human)+'</div></div><button class="danger delete-job" data-id="'+esc(item.id)+'">Supprimer</button></div>';
     if(showUploaded) html+='<div class="section"><h3>Images envoyées ('+uploaded.length+')</h3><div class="file-grid">'+(uploaded.length?uploaded.map(card).join(""):'<div class="empty">Aucune</div>')+'</div></div>';
     if(showTranslated) html+='<div class="section"><h3>Images traduites ('+translated.length+')</h3><div class="file-grid">'+(translated.length?translated.map(card).join(""):'<div class="empty">Aucune</div>')+'</div></div>';
-    const zips=item.files.filter(function(f){return /\.zip$/i.test(f.name);});
+    const zips=item.files.filter(function(f){return /\\.zip$/i.test(f.name);});
     html+='<div class="zip">'+(zips.length?zips.map(function(z){return '<a href="'+fileUrl(item,z,false)+'">Télécharger '+esc(z.name)+'</a>';}).join(" · "):"Aucun ZIP")+'</div></div>';
     return html;
   }).join("");
