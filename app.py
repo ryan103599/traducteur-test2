@@ -325,7 +325,7 @@ def render_admin_storage_jobs(items, kind="all"):
             for f in group:
                 name = str(f.get("name", ""))
                 p = quote(name, safe="")
-                out.append('<div class="file-card"><img src="/api/admin/storage/file?work_id='+wid+'&path='+p+'&preview=1" alt="'+escape(name, quote=True)+'" loading="lazy"><div class="file-name">'+escape(name)+'</div><div class="file-meta">'+escape(str(f.get("size_human", "")))+'</div><div class="file-actions"><a href="/api/admin/storage/file?work_id='+wid+'&path='+p+'">Télécharger</a></div><div class="file-menu"><button type="button">⋮</button><div class="file-menu-list"><button type="button" data-action="rename" data-id="'+wid+'" data-path="'+escape(name, quote=True)+'">Renommer</button><button type="button" data-action="edit-meta" data-id="'+wid+'">Modifier les données</button><button type="button" data-action="delete" data-id="'+wid+'">Supprimer</button></div></div></div>')
+                out.append('<div class="file-card"><img src="/api/admin/storage/file?work_id='+wid+'&path='+p+'&preview=1" onclick="openImage(this.src)" alt="'+escape(name, quote=True)+'" loading="lazy"><div class="file-name">'+escape(name)+'</div><div class="file-meta">'+escape(str(f.get("size_human", "")))+'</div><div class="file-actions"><a href="/api/admin/storage/file?work_id='+wid+'&path='+p+'">Télécharger</a></div><div class="file-menu"><button type="button">⋮</button><div class="file-menu-list"><button type="button" data-action="rename" data-id="'+wid+'" data-path="'+escape(name, quote=True)+'">Renommer</button><button type="button" data-action="edit-meta" data-id="'+wid+'">Modifier les données</button><button type="button" data-action="delete" data-id="'+wid+'">Supprimer</button></div></div></div>')
             return "".join(out)
         h = '<div class="job"><div class="job-head"><div><b>'+escape(str(item.get("id", "")))+'</b><div class="meta">'+escape(time.strftime("%d/%m/%Y %H:%M:%S", time.localtime(item.get("created", 0))))+' · IP '+escape(str(meta.get("client_ip", "inconnue")))+' · '+escape(str(item.get("size_human", "")))+'</div></div></div>'
         if kind != "translated":
@@ -524,6 +524,21 @@ const fromEl=document.getElementById("from"), toEl=document.getElementById("to")
 const minEl=document.getElementById("min"), maxEl=document.getElementById("max"), jobs=document.getElementById("jobs");
 const modal=document.getElementById("modal"), big=document.getElementById("big");
 
+function openImage(src){
+  var modal=document.getElementById("modal");
+  var big=document.getElementById("big");
+  if(!modal||!big)return;
+  big.src=src;
+  modal.classList.add("open");
+  document.body.style.overflow="hidden";
+}
+function closeImage(){
+  var modal=document.getElementById("modal");
+  var big=document.getElementById("big");
+  if(modal)modal.classList.remove("open");
+  if(big)big.src="";
+  document.body.style.overflow="";
+}
 function esc(value){
   return String(value == null ? "" : value).replace(/[&<>"']/g,function(c){
     return {"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[c];
@@ -552,7 +567,7 @@ function render(){
     const showUploaded=kind!=="translated", showTranslated=kind!=="uploaded";
     function card(file){
       const preview=fileUrl(item,file,true), download=fileUrl(item,file,false);
-      return '<div class="file-card"><img src="'+preview+'" data-preview="'+preview+'" alt="'+esc(file.name)+'"><div class="file-name">'+esc(file.name)+'</div><div class="file-meta">'+esc(file.size_human)+'</div><div class="file-actions"><a href="'+download+'">Télécharger</a></div><div class="file-menu"><button type="button">⋮</button><div class="file-menu-list"><button type="button" data-action="rename" data-id="'+esc(item.id)+'" data-path="'+esc(file.name)+'">Renommer</button><button type="button" data-action="edit-meta" data-id="'+esc(item.id)+'">Modifier les données</button><button type="button" data-action="delete" data-id="'+esc(item.id)+'">Supprimer</button></div></div></div>';
+      return '<div class="file-card"><img src="'+preview+'" data-preview="'+preview+'" onclick="openImage(this.src)" alt="'+esc(file.name)+'"><div class="file-name">'+esc(file.name)+'</div><div class="file-meta">'+esc(file.size_human)+'</div><div class="file-actions"><a href="'+download+'">Télécharger</a></div><div class="file-menu"><button type="button">⋮</button><div class="file-menu-list"><button type="button" data-action="rename" data-id="'+esc(item.id)+'" data-path="'+esc(file.name)+'">Renommer</button><button type="button" data-action="edit-meta" data-id="'+esc(item.id)+'">Modifier les données</button><button type="button" data-action="delete" data-id="'+esc(item.id)+'">Supprimer</button></div></div></div>';
     }
     let html='<div class="job"><div class="job-head"><div><b>'+esc(item.id)+'</b><div class="meta">'+fmt(item.created)+' · IP '+esc((item.metadata||{}).client_ip||"inconnue")+' · '+esc(item.size_human)+'</div></div><button class="danger delete-job" data-id="'+esc(item.id)+'">Supprimer</button></div>';
     if(showUploaded) html+='<div class="section"><h3>Images envoyées ('+uploaded.length+')</h3><div class="file-grid">'+(uploaded.length?uploaded.map(card).join(""):'<div class="empty">Aucune</div>')+'</div></div>';
@@ -602,8 +617,9 @@ document.querySelector(".filters").addEventListener("submit",function(e){e.preve
 document.querySelectorAll(".tab").forEach(function(btn){btn.addEventListener("click",function(){
   if(btn.dataset.f){kind=btn.dataset.f; document.querySelectorAll(".tab").forEach(function(x){x.classList.toggle("active",x===btn);}); render();}
 });});
-document.getElementById("closeModal").addEventListener("click",function(){modal.classList.remove("open");big.src="";});
-modal.addEventListener("click",function(e){if(e.target===modal){modal.classList.remove("open");big.src="";}});
+document.getElementById("closeModal").addEventListener("click",closeImage);
+modal.addEventListener("click",function(e){if(e.target===modal)closeImage();});
+document.addEventListener("keydown",function(e){if(e.key==="Escape")closeImage();});
 render();
 window.setInterval(function(){
   fetch("/api/admin/storage",{cache:"no-store"})
