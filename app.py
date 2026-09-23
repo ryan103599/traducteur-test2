@@ -26,8 +26,7 @@ LOCK = threading.Lock()
 RETENTION_SECONDS = 60 * 24 * 60 * 60
 CLEANUP_INTERVAL_SECONDS = 60 * 60
 TEMP_PREFIX = "traducteur_"
-STORAGE_PATH = Path(__file__).resolve().parent / "storage"
-STORAGE_PATH.mkdir(parents=True, exist_ok=True)
+STORAGE_PATH = Path(tempfile.gettempdir())
 ALLOWED = {".jpg", ".jpeg", ".png", ".webp", ".tif", ".tiff"}
 
 LANGUAGES = {
@@ -215,17 +214,8 @@ def format_size(size):
 
 
 def storage_roots():
-    """Retourne le stockage persistant et l'ancien stockage temporaire."""
-    roots = [STORAGE_PATH, Path(tempfile.gettempdir())]
-    unique = []
-    for root in roots:
-        try:
-            root = root.resolve()
-        except OSError:
-            pass
-        if root not in unique:
-            unique.append(root)
-    return unique
+    """Retourne uniquement le stockage temporaire système (/tmp)."""
+    return [STORAGE_PATH]
 
 
 def find_storage_work(work_id):
@@ -290,26 +280,6 @@ def list_stored_files():
                 continue
     items.sort(key=lambda item: item["created"], reverse=True)
     return items
-
-
-def migrate_legacy_storage():
-    """Déplace les anciens traitements stockés dans /tmp vers le stockage persistant."""
-    legacy_root = Path(tempfile.gettempdir())
-    try:
-        works = list(legacy_root.glob(f"{TEMP_PREFIX}*"))
-    except OSError:
-        return
-    for work in works:
-        try:
-            if not work.is_dir() or not work.name.startswith(TEMP_PREFIX):
-                continue
-            destination = STORAGE_PATH / work.name
-            if destination.exists():
-                continue
-            shutil.move(str(work), str(destination))
-            app.logger.info("Ancien traitement déplacé vers le stockage persistant : %s", work.name)
-        except OSError:
-            app.logger.exception("Impossible de migrer le traitement legacy %s", work)
 
 
 def cleanup_old_files():
@@ -1149,7 +1119,6 @@ def download_untranslated(job_id):
 
 
 if __name__ == "__main__":
-    migrate_legacy_storage()
     cleanup_old_files()
     threading.Thread(target=cleanup_loop, daemon=True).start()
     port = int(os.getenv("PORT", "8686"))
